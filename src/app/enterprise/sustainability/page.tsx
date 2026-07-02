@@ -2,6 +2,9 @@
 
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Gift, ExternalLink, Sparkles } from "lucide-react";
+import Link from "next/link";
 
 export default function SustainabilityPage() {
   const [co2e, setCo2e] = useState(10600); // Mock value for Enterprise total
@@ -16,11 +19,46 @@ export default function SustainabilityPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight text-slate-800">Laporan Keberlanjutan (SDG)</h2>
-        <p className="text-slate-500">
-          Memantau kontribusi perusahaan terhadap Tujuan Pembangunan Berkelanjutan (SDG 9 & 17).
-        </p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-800">Laporan Keberlanjutan (SDG)</h2>
+          <p className="text-slate-500">
+            Memantau kontribusi perusahaan terhadap Tujuan Pembangunan Berkelanjutan (SDG 9 & 17).
+          </p>
+        </div>
+      </div>
+
+      {/* Hero Wrapped Highlight (Optional but good for visibility) */}
+      <div className="relative overflow-hidden bg-slate-900 rounded-2xl p-1 shadow-xl group">
+        <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 via-transparent to-resurva-gold/20 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+        <div className="relative bg-white rounded-[14px] p-6 md:p-8 flex flex-col md:flex-row items-center gap-8">
+          <div className="flex-1 space-y-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-widest border border-emerald-100">
+              <Sparkles className="w-3.5 h-3.5" />
+              Annual Recap
+            </div>
+            <h3 className="text-3xl font-black text-slate-900 leading-tight">
+              Kisah Keberlanjutan <br /> Bisnis Anda di Tahun 2024
+            </h3>
+            <p className="text-slate-600 text-lg leading-relaxed">
+              Jelajahi dampak positif yang Anda buat selama setahun terakhir dalam format visual yang interaktif dan menarik.
+            </p>
+            <div className="pt-2">
+              <Link href="/wrapped" target="_blank">
+                <Button variant="outline" className="border-2 border-slate-900 text-slate-900 hover:bg-slate-900 hover:text-white font-bold rounded-full px-8 underline-offset-4 decoration-2">
+                  Buka Wrapped Sekarang
+                </Button>
+              </Link>
+            </div>
+          </div>
+          <div className="w-full md:w-72 aspect-square bg-slate-100 rounded-2xl flex items-center justify-center relative overflow-hidden shrink-0">
+             <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-resurva-gold/30 to-transparent" />
+             <Gift className="w-32 h-32 text-slate-900 relative z-10 animate-bounce" style={{ animationDuration: '3s' }} />
+             <div className="absolute top-4 right-4 animate-pulse">
+                <div className="w-3 h-3 rounded-full bg-resurva-gold shadow-[0_0_15px_rgba(202,175,98,0.8)]" />
+             </div>
+          </div>
+        </div>
       </div>
 
       <div className="bg-gradient-to-r from-emerald-800 to-teal-900 rounded-xl p-8 text-white shadow-lg">

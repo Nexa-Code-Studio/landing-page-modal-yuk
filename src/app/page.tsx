@@ -210,12 +210,25 @@ export default function LandingPage() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   // Form State
   const [name, setName] = useState("");
   const [business, setBusiness] = useState("");
   const [phone, setPhone] = useState("");
   const [city, setCity] = useState("");
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsLoginOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   useEffect(() => {
     // Detect system language
@@ -326,10 +339,9 @@ export default function LandingPage() {
               </Button>
 
               {/* Login Action Trigger Dropdown */}
-              <div className="relative">
+              <div className="relative" ref={dropdownRef}>
                 <Button
                   onClick={() => setIsLoginOpen(!isLoginOpen)}
-                  onMouseEnter={() => setIsLoginOpen(true)}
                   className="bg-[#0F3D2E]/10 text-[#0F3D2E] hover:bg-[#0F3D2E]/20 border border-[#0F3D2E]/10"
                 >
                   <HugeiconsIcon icon={LockIcon} size={16} />
@@ -340,7 +352,6 @@ export default function LandingPage() {
                 {isLoginOpen && (
                   <div
                     className="absolute right-0 mt-2 w-64 bg-white border border-[#0F3D2E]/10 rounded-xl shadow-xl py-3 z-50 animate-in fade-in slide-in-from-top-2 duration-200"
-                    onMouseLeave={() => setIsLoginOpen(false)}
                   >
                     <div className="px-4 py-2 border-b border-[#0F3D2E]/5">
                       <p className="text-xs font-semibold text-[#0F3D2E]/50 uppercase tracking-wider">

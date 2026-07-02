@@ -6,6 +6,8 @@ const enterpriseMenus: MenuItem[] = [
   { name: "Waste Analytics", href: "/enterprise/analytics" },
   { name: "SDG Sustainability", href: "/enterprise/sustainability" },
   { name: "Leaderboard Mitra", href: "/enterprise/leaderboard" },
+  { name: "Manajemen Mitra", href: "/enterprise/partners" },
+  { name: "Profil", href: "/enterprise/profile" },
 ];
 
 const enterpriseProfile: ProfileInfo = {
@@ -18,6 +20,8 @@ const titleMapping = {
   "/enterprise/analytics": "Waste Analytics & Multi-Branch Control",
   "/enterprise/sustainability": "Sustainability Reporting (SDG)",
   "/enterprise/leaderboard": "Leaderboard Kinerja Mitra",
+  "/enterprise/partners": "Manajemen Mitra",
+  "/enterprise/profile": "Profil Perusahaan",
 };
 
 export default function EnterpriseLayout({

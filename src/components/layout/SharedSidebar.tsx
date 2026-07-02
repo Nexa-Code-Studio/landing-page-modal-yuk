@@ -7,6 +7,8 @@ import { usePathname } from "next/navigation";
 export interface MenuItem {
   name: string;
   href: string;
+  target?: '_blank' | '_self';
+  badge?: string;
 }
 
 export interface ProfileInfo {
@@ -57,13 +59,21 @@ export function SharedSidebar({ roleName, menus, profile }: SharedSidebarProps) 
             <Link
               key={item.name}
               href={item.href}
-              className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                isActive
+              target={item.target ?? '_self'}
+              rel={item.target === '_blank' ? 'noopener noreferrer' : undefined}
+              className={`flex items-center justify-between px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                isActive && item.target !== '_blank'
                   ? `${style.bgActive} ${style.textActive}`
-                  : `text-white ${style.textHover} ${style.bgHover}`
+                  : `text-white/80 ${style.textHover} ${style.bgHover}`
               }`}
             >
-              {item.name}
+              <span>{item.name}</span>
+              {item.badge && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-resurva-gold/20 text-resurva-gold">{item.badge}</span>
+              )}
+              {item.target === '_blank' && (
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-50"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              )}
             </Link>
           );
         })}
