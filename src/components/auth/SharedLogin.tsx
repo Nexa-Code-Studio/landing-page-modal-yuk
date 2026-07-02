@@ -2,12 +2,14 @@
 
 import React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { TranslationIcon } from "@hugeicons/core-free-icons";
+import { ArrowLeft } from "lucide-react";
 
 export interface SharedLoginProps {
   roleName: string;
@@ -47,6 +49,7 @@ const loginTranslations = {
     signInBtn: "Sign In to System",
     needHelp: "Need access help?",
     contactSupport: "Contact Support",
+    backBtn: "Back",
   },
   id: {
     Superadmin: {
@@ -75,6 +78,7 @@ const loginTranslations = {
     signInBtn: "Masuk ke Sistem",
     needHelp: "Butuh bantuan akses?",
     contactSupport: "Hubungi Support",
+    backBtn: "Kembali",
   }
 };
 
@@ -87,6 +91,7 @@ export function SharedLogin({
   idPlaceholder,
   redirectUrl,
 }: SharedLoginProps) {
+  const router = useRouter();
   const [lang, setLang] = React.useState<"en" | "id">("en");
 
   React.useEffect(() => {
@@ -130,6 +135,19 @@ export function SharedLogin({
 
   return (
     <div className={`min-h-screen ${style.bg} flex items-center justify-center p-4 relative overflow-hidden`}>
+      {/* Back Button */}
+      <div className="absolute top-4 left-4 z-20">
+        <Button
+          variant="outline"
+          size="xs"
+          onClick={() => router.back()}
+          className="flex items-center gap-1.5 text-xs font-bold text-resurva-dark border-resurva-dark/20 hover:border-resurva-dark hover:bg-resurva-dark/5 transition-all bg-white/80 backdrop-blur-sm"
+        >
+          <ArrowLeft size={14} />
+          <span>{commonText.backBtn}</span>
+        </Button>
+      </div>
+
       {/* Language Switcher */}
       <div className="absolute top-4 right-4 z-20">
         <Button

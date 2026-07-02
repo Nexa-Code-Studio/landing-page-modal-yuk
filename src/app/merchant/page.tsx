@@ -4,11 +4,40 @@ import React, { useRef } from "react";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Clock, Package, CheckCircle, Truck, Leaf, AlertTriangle } from "lucide-react";
 import { useMerchantContext } from "@/lib/contexts/MerchantContext";
 
 export default function MerchantDashboard() {
   const { products, orders } = useMerchantContext();
   const aiWidgetRef = useRef<HTMLDivElement>(null);
+
+  // Kalkulasi total item terjual & emisi diselamatkan
+  const totalItemsSold = orders.reduce(
+    (sum, order) => sum + order.items.reduce((acc, item) => acc + item.qty, 0),
+    0
+  );
+  // Asumsi PRD: 0.5kg per item, Faktor Emisi = 27.0 kg CO2e/kg
+  const carbonSaved = (totalItemsSold * 0.5 * 27.0).toFixed(1);
+
+  // Helper untuk Tracker Kedaluwarsa
+  const getExpiryStatus = (dateString: string) => {
+    const hoursRemaining = (new Date(dateString).getTime() - Date.now()) / (1000 * 60 * 60);
+    if (hoursRemaining <= 24) return { label: "Flash Sale", color: "bg-red-100 text-red-700 hover:bg-red-200" };
+    if (hoursRemaining <= 72) return { label: "Surplus", color: "bg-yellow-100 text-yellow-700 hover:bg-yellow-200" };
+    return { label: "Aman", color: "bg-green-100 text-green-700 hover:bg-green-200" };
+  };
+
+  const getOrderStatusIcon = (status: string) => {
+    switch(status) {
+      case "Mencari Kurir": return <Clock className="w-4 h-4 text-orange-500" />;
+      case "Menuju Outlet": return <Truck className="w-4 h-4 text-blue-500" />;
+      case "Pikap": return <Package className="w-4 h-4 text-purple-500" />;
+      case "Selesai": return <CheckCircle className="w-4 h-4 text-green-500" />;
+      default: return <Clock className="w-4 h-4 text-gray-500" />;
+    }
+  };
 
   useGSAP(() => {
     gsap.from(aiWidgetRef.current, {
@@ -23,7 +52,7 @@ export default function MerchantDashboard() {
   return (
     <div className="space-y-8">
       {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-500">
@@ -53,6 +82,81 @@ export default function MerchantDashboard() {
           <CardContent>
             <div className="text-3xl font-bold text-green-600">
               Rp {orders.reduce((acc, order) => acc + order.totalAmount, 0).toLocaleString("id-ID")}
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-resurva-green-muted border-resurva-dark-light/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-resurva-dark-light flex items-center gap-2">
+              <Leaf className="w-4 h-4" /> Emisi Diselamatkan
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-resurva-dark">{carbonSaved} <span className="text-sm font-medium text-resurva-dark/70">kg CO₂e</span></div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Real-Time Expiry Tracker */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-orange-500" />
+              Real-Time Expiry Tracker
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Produk</TableHead>
+                  <TableHead>Sisa Stok</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {products.map((product) => {
+                  const status = getExpiryStatus(product.expiryDate);
+                  return (
+                    <TableRow key={product.id}>
+                      <TableCell className="font-medium">{product.name}</TableCell>
+                      <TableCell>{product.quantity}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`${status.color} border-none`}>{status.label}</Badge>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        {/* Pesanan Aktif & Status Kurir */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Package className="w-5 h-5 text-blue-500" />
+              Pesanan & Status Kurir
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {orders.map((order) => (
+                <div key={order.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50 transition-colors">
+                  <div>
+                    <p className="font-medium text-sm">{order.id} - {order.customerName}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {order.items.map(i => `${i.qty}x ${i.name}`).join(', ')}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {getOrderStatusIcon(order.status)}
+                    <span className="text-sm font-medium">{order.status}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
