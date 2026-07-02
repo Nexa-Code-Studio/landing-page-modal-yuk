@@ -22,7 +22,8 @@ export default function MerchantDashboard() {
   const carbonSaved = (totalItemsSold * 0.5 * 27.0).toFixed(1);
 
   // Helper untuk Tracker Kedaluwarsa
-  const getExpiryStatus = (dateString: string) => {
+  const getExpiryStatus = (dateString?: string) => {
+    if (!dateString) return { label: "Reguler", color: "bg-slate-100 text-slate-700 hover:bg-slate-200" };
     const hoursRemaining = (new Date(dateString).getTime() - Date.now()) / (1000 * 60 * 60);
     if (hoursRemaining <= 24) return { label: "Flash Sale", color: "bg-red-100 text-red-700 hover:bg-red-200" };
     if (hoursRemaining <= 72) return { label: "Surplus", color: "bg-yellow-100 text-yellow-700 hover:bg-yellow-200" };
