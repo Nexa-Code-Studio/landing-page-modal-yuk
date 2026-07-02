@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { Bell, Package, AlertTriangle, Truck } from "lucide-react";
+import { Bell, Package, AlertTriangle, Truck, Menu } from "lucide-react";
 
 // Mock Data Notifikasi
 const mockNotifications = [
@@ -14,9 +14,10 @@ const mockNotifications = [
 interface SharedHeaderProps {
   pageTitleMapping: Record<string, string>;
   defaultTitle: string;
+  onToggleSidebar?: () => void;
 }
 
-export function SharedHeader({ pageTitleMapping, defaultTitle }: SharedHeaderProps) {
+export function SharedHeader({ pageTitleMapping, defaultTitle, onToggleSidebar }: SharedHeaderProps) {
   const pathname = usePathname();
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(mockNotifications.length);
@@ -52,7 +53,17 @@ export function SharedHeader({ pageTitleMapping, defaultTitle }: SharedHeaderPro
 
   return (
     <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0">
-      <h1 className="text-xl font-semibold text-slate-800">{getPageTitle()}</h1>
+      <div className="flex items-center gap-4">
+        {onToggleSidebar && (
+          <button 
+            onClick={onToggleSidebar}
+            className="p-2 -ml-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        )}
+        <h1 className="text-xl font-semibold text-slate-800">{getPageTitle()}</h1>
+      </div>
       <div className="flex items-center gap-4 relative" ref={dropdownRef}>
         {/* Notifications */}
         <button 

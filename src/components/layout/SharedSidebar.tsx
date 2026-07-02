@@ -21,9 +21,10 @@ export interface SharedSidebarProps {
   roleName: string; // e.g. "Merchant", "Enterprise", "Superadmin"
   menus: MenuItem[];
   profile: ProfileInfo;
+  isOpen?: boolean;
 }
 
-export function SharedSidebar({ roleName, menus, profile }: SharedSidebarProps) {
+export function SharedSidebar({ roleName, menus, profile, isOpen = true }: SharedSidebarProps) {
   const pathname = usePathname();
 
   const style = {
@@ -39,7 +40,7 @@ export function SharedSidebar({ roleName, menus, profile }: SharedSidebarProps) 
   };
 
   return (
-    <aside className={`w-64 ${style.bg} text-white hidden md:flex flex-col border-r border-resurva-dark-light`}>
+    <aside className={`w-64 ${style.bg} text-white flex-col border-r border-resurva-dark-light transition-all duration-300 ease-in-out ${isOpen ? "flex" : "hidden"}`}>
       {/* Brand Logo */}
       <div className="h-16 flex items-center px-6 border-b border-resurva-dark-light">
         <span className="text-xl font-extrabold text-white">

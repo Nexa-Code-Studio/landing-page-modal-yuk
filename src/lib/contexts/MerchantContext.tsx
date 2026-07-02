@@ -53,6 +53,7 @@ interface MerchantContextProps {
   updateProduct: (id: string, product: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
   orders: Order[];
+  addOrder: (order: Omit<Order, "id">) => void;
 }
 
 const MerchantContext = createContext<MerchantContextProps | undefined>(undefined);
@@ -158,8 +159,16 @@ export function MerchantProvider({ children }: { children: ReactNode }) {
     setProducts((prev) => prev.filter(p => p.id !== id));
   };
 
+  const addOrder = (order: Omit<Order, "id">) => {
+    const newOrder = {
+      ...order,
+      id: `ORD-${Date.now().toString().slice(-4)}`,
+    };
+    setOrders((prev) => [newOrder, ...prev]);
+  };
+
   return (
-    <MerchantContext.Provider value={{ products, addProduct, updateProduct, deleteProduct, orders }}>
+    <MerchantContext.Provider value={{ products, addProduct, updateProduct, deleteProduct, orders, addOrder }}>
       {children}
     </MerchantContext.Provider>
   );
