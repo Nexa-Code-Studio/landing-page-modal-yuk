@@ -48,6 +48,11 @@ const TRANSLATIONS = {
     ordersMenu: "Orders menu",
     inventoryMenu: "Inventory menu",
     pcs: "pcs",
+    productHeader: "Product",
+    batchQtyHeader: "Batch Qty",
+    statusHeader: "Status",
+    expiryHeader: "Expiry",
+    totalStockHeader: "Remaining Stock (Total)",
   },
   id: {
     totalProducts: "Total Produk di Inventaris",
@@ -74,6 +79,11 @@ const TRANSLATIONS = {
     ordersMenu: "menu Pesanan",
     inventoryMenu: "menu Inventaris",
     pcs: "pcs",
+    productHeader: "Produk",
+    batchQtyHeader: "Jumlah Batch",
+    statusHeader: "Status",
+    expiryHeader: "Kedaluwarsa",
+    totalStockHeader: "Sisa Stok (Total)",
   }
 };
 
@@ -237,36 +247,43 @@ export default function MerchantDashboard() {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-slate-500 font-bold">{t.product}</TableHead>
-                    <TableHead className="text-slate-500 font-bold">{t.batch} & {t.status}</TableHead>
-                    <TableHead className="text-slate-500 font-bold text-right">{t.remainingStock}</TableHead>
+                  <TableRow className="hover:bg-transparent border-b border-slate-100">
+                    <TableHead className="text-slate-500 font-bold px-4 py-3 text-sm">
+                      <span className="flex items-center gap-1.5">
+                        <svg className="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                        </svg>
+                        {t.product}
+                      </span>
+                    </TableHead>
+                    <TableHead className="text-slate-500 font-bold px-4 py-3 text-sm">{lang === "en" ? "Batches & Expiry" : "Batch & Kedaluwarsa"}</TableHead>
+                    <TableHead className="text-slate-500 font-bold px-4 py-3 text-sm text-right">{t.remainingStock}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {products.slice(0, 5).map((product) => {
                     const batches = getMockBatches(product);
                     return (
-                      <TableRow key={product.id} className="hover:bg-slate-50/50">
+                      <TableRow key={product.id} className="hover:bg-slate-50/50 border-b border-slate-100">
                         <TableCell className="font-semibold py-4 align-top">
                           <span className="text-slate-800 text-sm block">{product.name}</span>
-                          <span className="text-xs text-slate-400 font-normal">{product.category}</span>
+                          <span className="text-xs text-slate-400 font-normal mt-0.5">{product.category}</span>
                         </TableCell>
                         <TableCell className="py-3">
-                          <div className="space-y-2">
+                          <div className="flex flex-col gap-2">
                             {batches.map((batch, index) => (
-                              <div key={index} className="flex items-center gap-2.5 text-xs text-slate-600">
-                                <span className="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
+                              <div key={index} className="flex items-center gap-2.5 text-xs">
+                                <span className="font-bold text-slate-700 bg-slate-150/40 px-1.5 py-0.5 rounded">
                                   {batch.qty} {t.pcs}
                                 </span>
-                                <Badge className={`border-none text-[10px] font-extrabold px-2 py-0.5 rounded ${
+                                <Badge className={`border-none text-[9px] font-extrabold px-1.5 py-0.5 rounded ${
                                   batch.status === t.surplus 
                                     ? "bg-amber-100 text-amber-700 hover:bg-amber-100" 
                                     : "bg-slate-100 text-slate-700 hover:bg-slate-100"
                                 }`}>
                                   {batch.status.toUpperCase()}
                                 </Badge>
-                                <span className="text-slate-400 font-medium">{batch.expiry}</span>
+                                <span className="text-slate-400 font-medium">{batch.expiry === "-" ? "---" : batch.expiry}</span>
                               </div>
                             ))}
                           </div>

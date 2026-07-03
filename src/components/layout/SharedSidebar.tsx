@@ -36,7 +36,8 @@ const SIDEBAR_TRANSLATIONS = {
     "Logout": "Logout",
     "Cabang Malang": "Malang Branch",
     "Pusat Manajemen": "Management HQ",
-    "Pusat Kendali": "Control Center"
+    "Pusat Kendali": "Control Center",
+    "Analitik Toko": "Store Analytics"
   },
   id: {
     "Dashboard": "Dasbor",
@@ -51,7 +52,8 @@ const SIDEBAR_TRANSLATIONS = {
     "Logout": "Keluar",
     "Cabang Malang": "Cabang Malang",
     "Pusat Manajemen": "Pusat Manajemen",
-    "Pusat Kendali": "Pusat Kendali"
+    "Pusat Kendali": "Pusat Kendali",
+    "Analitik Toko": "Analitik Toko"
   }
 };
 
