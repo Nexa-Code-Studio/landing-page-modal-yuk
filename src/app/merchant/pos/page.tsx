@@ -17,11 +17,107 @@ interface CartItem {
 
 type OrderType = "Dine-In" | "Take-Away";
 
+const TRANSLATIONS = {
+  en: {
+    searchPlaceholder: "Search menu...",
+    all: "All",
+    cartTitle: "Orders",
+    clearBtn: "Clear",
+    dineIn: "Dine-In",
+    takeAway: "Take-Away",
+    emptyCart: "No orders yet",
+    subtotal: "Subtotal",
+    tax: "Restaurant Tax (11%)",
+    total: "TOTAL",
+    payBtn: "Pay Order",
+    cash: "Cash",
+    qris: "QRIS (Xendit)",
+    totalBill: "Total Bill",
+    cashReceivedLabel: "Cash Received (Rp)",
+    exactChange: "Exact Change",
+    change: "Change",
+    processPayment: "Process Payment",
+    availableVariant: "Variant Available",
+    receiptTitle: "Receipt",
+    printBtn: "Print Receipt",
+    doneBtn: "Done",
+    thanks: "Thank you for your visit!",
+    confirmAdd: "Confirm & Add",
+    required: "Required",
+    optional: "Optional",
+    selectVariant: "Select Variant",
+    paymentTitle: "Payment",
+    underpaid: "Cash received is less than the total bill.",
+    showQris: "Show QRIS Xendit on Customer Screen",
+    qrisSim: "Simulation: Assume customer has scanned and paid.",
+    outletMalang: "Malang Branch",
+    outletAddr: "Jl. Example No 123",
+  },
+  id: {
+    searchPlaceholder: "Cari menu...",
+    all: "Semua",
+    cartTitle: "Pesanan",
+    clearBtn: "Kosongkan",
+    dineIn: "Makan di Tempat",
+    takeAway: "Bungkus",
+    emptyCart: "Belum ada pesanan",
+    subtotal: "Subtotal",
+    tax: "Pajak Resto (11%)",
+    total: "TOTAL",
+    payBtn: "Bayar Pesanan",
+    cash: "Tunai",
+    qris: "QRIS (Xendit)",
+    totalBill: "Total Tagihan",
+    cashReceivedLabel: "Uang Diterima (Rp)",
+    exactChange: "Uang Pas",
+    change: "Kembalian",
+    processPayment: "Proses Pembayaran",
+    availableVariant: "Tersedia Varian",
+    receiptTitle: "Struk Pembayaran",
+    printBtn: "Cetak Struk",
+    doneBtn: "Selesai",
+    thanks: "Terima kasih atas kunjungannya!",
+    confirmAdd: "Konfirmasi & Tambah",
+    required: "Wajib",
+    optional: "Opsional",
+    selectVariant: "Pilih Varian",
+    paymentTitle: "Pembayaran",
+    underpaid: "Uang yang diterima kurang dari total pembayaran.",
+    showQris: "Tampilkan QRIS Xendit di Layar Pelanggan",
+    qrisSim: "Simulasi: Anggap pelanggan sudah *scan* dan bayar via E-Wallet/M-Banking.",
+    outletMalang: "Cabang Malang",
+    outletAddr: "Jl. Contoh No 123",
+  }
+};
+
 export default function POSPage() {
   const { products, addOrder } = useMerchantContext();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("Semua");
   const [orderType, setOrderType] = useState<OrderType>("Dine-In");
+  const [lang, setLang] = useState<"en" | "id">("en");
+
+  // Load language preference from localStorage
+  useEffect(() => {
+    const savedLang = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
+    if (savedLang) {
+      setLang(savedLang);
+    } else {
+      const systemLang = navigator.language.startsWith("id") ? "id" : "en";
+      setLang(systemLang);
+    }
+
+    const handleLangChange = () => {
+      const currentSaved = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
+      if (currentSaved) {
+        setLang(currentSaved);
+      }
+    };
+    window.addEventListener("languageChange", handleLangChange);
+    return () => window.removeEventListener("languageChange", handleLangChange);
+  }, []);
+
+  const t = TRANSLATIONS[lang];
   
   // Cart State
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -36,14 +132,16 @@ export default function POSPage() {
   const [cashReceived, setCashReceived] = useState<number>(0);
   
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
 
   // Derived state
-  const categories = ["Semua", ...Array.from(new Set(products.map(p => p.category)))];
+  const categories = [lang === "en" ? "All" : "Semua", ...Array.from(new Set(products.map(p => p.category)))];
   
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = activeCategory === "Semua" || p.category === activeCategory;
+      const isAllText = activeCategory === "Semua" || activeCategory === "All";
+      const matchesCategory = isAllText || p.category === activeCategory;
       return matchesSearch && matchesCategory && p.isPublished;
     });
   }, [products, searchQuery, activeCategory]);
@@ -93,7 +191,7 @@ export default function POSPage() {
     if (selectedProduct.variantGroups) {
       for (const group of selectedProduct.variantGroups) {
         if (group.isRequired && (!tempVariantSelections[group.id] || tempVariantSelections[group.id].length === 0)) {
-          alert(`Pilihan untuk "${group.name}" wajib diisi.`);
+          alert(lang === "en" ? `Choice for "${group.name}" is required.` : `Pilihan untuk "${group.name}" wajib diisi.`);
           return;
         }
       }
@@ -156,7 +254,7 @@ export default function POSPage() {
 
   const handlePay = () => {
     if (paymentMethod === "Tunai" && cashReceived < grandTotal) {
-      alert("Uang yang diterima kurang dari total pembayaran.");
+      alert(t.underpaid);
       return;
     }
     
@@ -196,10 +294,10 @@ export default function POSPage() {
   const renderVariantModal = () => {
     if (!variantModalOpen || !selectedProduct) return null;
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 print:hidden">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 print:hidden animate-fade-in">
         <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
           <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
-            <h3 className="font-bold text-lg text-slate-800">Pilih Varian: {selectedProduct.name}</h3>
+            <h3 className="font-bold text-lg text-slate-800">{t.selectVariant}: {selectedProduct.name}</h3>
             <button onClick={() => setVariantModalOpen(false)} className="text-slate-400 hover:text-slate-600">✕</button>
           </div>
           
@@ -211,7 +309,7 @@ export default function POSPage() {
                   <div className="flex justify-between items-baseline mb-3">
                     <h4 className="font-semibold text-slate-800">{group.name}</h4>
                     <span className="text-xs text-slate-500">
-                      {group.isRequired ? "Wajib" : "Opsional"} 
+                      {group.isRequired ? t.required : t.optional} 
                       {group.maxSelections > 1 ? ` (Max ${group.maxSelections})` : ""}
                     </span>
                   </div>
@@ -227,7 +325,7 @@ export default function POSPage() {
                           }`}
                         >
                           <span className="font-medium text-sm text-slate-800">{opt.name}</span>
-                          <span className="text-xs text-slate-500">+{opt.additionalPrice > 0 ? `Rp${opt.additionalPrice.toLocaleString()}` : 'Gratis'}</span>
+                          <span className="text-xs text-slate-500">+{opt.additionalPrice > 0 ? `Rp${opt.additionalPrice.toLocaleString()}` : (lang === "en" ? 'Free' : 'Gratis')}</span>
                         </div>
                       )
                     })}
@@ -238,8 +336,8 @@ export default function POSPage() {
           </div>
           
           <div className="p-4 border-t bg-white">
-            <Button className="w-full bg-resurva-dark hover:bg-resurva-dark-light text-white h-12 text-lg" onClick={confirmVariantSelection}>
-              Konfirmasi & Tambah
+            <Button className="w-full bg-resurva-dark hover:bg-resurva-dark-light text-white h-12 text-lg rounded-xl font-bold" onClick={confirmVariantSelection}>
+              {t.confirmAdd}
             </Button>
           </div>
         </div>
@@ -250,10 +348,10 @@ export default function POSPage() {
   const renderPaymentModal = () => {
     if (!paymentModalOpen) return null;
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 print:hidden">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 print:hidden animate-fade-in">
         <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col">
           <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
-            <h3 className="font-bold text-lg text-slate-800">Pembayaran</h3>
+            <h3 className="font-bold text-lg text-slate-800">{t.paymentTitle}</h3>
             <button onClick={() => setPaymentModalOpen(false)} className="text-slate-400 hover:text-slate-600">✕</button>
           </div>
           
@@ -261,63 +359,63 @@ export default function POSPage() {
             <div className="flex gap-4">
               <button 
                 onClick={() => setPaymentMethod("Tunai")}
-                className={`flex-1 flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${paymentMethod === 'Tunai' ? 'border-resurva-dark bg-resurva-green-muted/20 text-resurva-dark' : 'border-slate-200 text-slate-600 hover:border-slate-300'}`}
+                className={`flex-1 flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all cursor-pointer ${paymentMethod === 'Tunai' ? 'border-resurva-dark bg-resurva-green-muted/20 text-resurva-dark font-bold' : 'border-slate-200 text-slate-600 hover:border-slate-300'}`}
               >
-                <Banknote className="w-5 h-5" /> <span className="font-bold">Tunai</span>
+                <Banknote className="w-5 h-5" /> <span>{t.cash}</span>
               </button>
               <button 
                 onClick={() => setPaymentMethod("QRIS")}
-                className={`flex-1 flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${paymentMethod === 'QRIS' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600 hover:border-slate-300'}`}
+                className={`flex-1 flex items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all cursor-pointer ${paymentMethod === 'QRIS' ? 'border-blue-600 bg-blue-50 text-blue-700 font-bold' : 'border-slate-200 text-slate-600 hover:border-slate-300'}`}
               >
-                <QrCode className="w-5 h-5" /> <span className="font-bold">QRIS (Xendit)</span>
+                <QrCode className="w-5 h-5" /> <span>{t.qris}</span>
               </button>
             </div>
 
             <div className="bg-slate-100 rounded-xl p-6 text-center">
-              <p className="text-slate-500 mb-1">Total Tagihan</p>
+              <p className="text-slate-500 mb-1">{t.totalBill}</p>
               <h2 className="text-4xl font-extrabold text-slate-900">Rp {grandTotal.toLocaleString("id-ID")}</h2>
             </div>
 
             {paymentMethod === "Tunai" ? (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Uang Diterima (Rp)</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">{t.cashReceivedLabel}</label>
                   <Input 
                     type="number" 
-                    className="h-14 text-2xl font-bold" 
+                    className="h-14 text-2xl font-bold rounded-xl border-slate-200" 
                     value={cashReceived || ""} 
                     onChange={(e) => setCashReceived(Number(e.target.value))} 
                   />
                 </div>
                 <div className="grid grid-cols-4 gap-2">
-                  <Button variant="outline" onClick={() => setCashReceived(grandTotal)}>Uang Pas</Button>
-                  <Button variant="outline" onClick={() => setCashReceived(50000)}>50.000</Button>
-                  <Button variant="outline" onClick={() => setCashReceived(100000)}>100.000</Button>
-                  <Button variant="outline" onClick={() => setCashReceived(cashReceived + 10000)}>+10.000</Button>
+                  <Button variant="outline" className="rounded-xl font-semibold" onClick={() => setCashReceived(grandTotal)}>{t.exactChange}</Button>
+                  <Button variant="outline" className="rounded-xl font-semibold" onClick={() => setCashReceived(50000)}>50.000</Button>
+                  <Button variant="outline" className="rounded-xl font-semibold" onClick={() => setCashReceived(100000)}>100.000</Button>
+                  <Button variant="outline" className="rounded-xl font-semibold" onClick={() => setCashReceived(cashReceived + 10000)}>+10.000</Button>
                 </div>
                 {cashReceived >= grandTotal && (
-                  <div className="flex justify-between items-center p-4 bg-green-50 text-green-800 rounded-lg border border-green-200">
-                    <span className="font-medium">Kembalian:</span>
+                  <div className="flex justify-between items-center p-4 bg-green-50 text-green-800 rounded-xl border border-green-200">
+                    <span className="font-semibold">{t.change}:</span>
                     <span className="text-xl font-bold">Rp {change.toLocaleString("id-ID")}</span>
                   </div>
                 )}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-4 border-2 border-dashed border-slate-300 rounded-xl bg-slate-50">
-                <QrCode className="w-32 h-32 text-slate-400 mb-4" />
-                <p className="font-medium text-slate-700">Tampilkan QRIS Xendit di Layar Pelanggan</p>
-                <p className="text-sm text-slate-500 text-center mt-2 px-8">Simulasi: Anggap pelanggan sudah *scan* dan bayar via E-Wallet/M-Banking.</p>
+                <QrCode className="w-32 h-32 text-slate-400 mb-4 animate-pulse" />
+                <p className="font-bold text-slate-700">{t.showQris}</p>
+                <p className="text-xs text-slate-500 text-center mt-2 px-8">{t.qrisSim}</p>
               </div>
             )}
           </div>
           
           <div className="p-4 border-t bg-white">
             <Button 
-              className="w-full bg-resurva-dark hover:bg-resurva-dark-light text-white h-14 text-xl font-bold" 
+              className="w-full bg-resurva-dark hover:bg-resurva-dark-light text-white h-14 text-xl font-bold rounded-xl" 
               onClick={handlePay}
               disabled={paymentMethod === 'Tunai' && cashReceived < grandTotal}
             >
-              Proses Pembayaran
+              {t.processPayment}
             </Button>
           </div>
         </div>
@@ -328,11 +426,11 @@ export default function POSPage() {
   const renderReceiptModal = () => {
     if (!receiptModalOpen) return null;
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 print:bg-white print:p-0">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 print:bg-white print:p-0 animate-fade-in">
         <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden flex flex-col print:shadow-none print:w-full print:max-w-none">
           <div className="p-8 pb-4 border-b-2 border-dashed flex flex-col items-center text-center">
              <h2 className="text-2xl font-bold text-slate-900 mb-1">UMKM Berkah</h2>
-             <p className="text-sm text-slate-500">Cabang Malang<br/>Jl. Contoh No 123</p>
+             <p className="text-sm text-slate-500">{t.outletMalang}<br/>{t.outletAddr}</p>
              <p className="text-xs text-slate-400 mt-4">{new Date().toLocaleString('id-ID')}</p>
              <p className="text-sm font-semibold mt-1">Order: {orderType}</p>
           </div>
@@ -374,20 +472,20 @@ export default function POSPage() {
                 <span>Rp {(paymentMethod === "Tunai" ? cashReceived : grandTotal).toLocaleString('id-ID')}</span>
               </div>
               <div className="flex justify-between">
-                <span>Kembalian</span>
+                <span>{t.change}</span>
                 <span>Rp {change.toLocaleString('id-ID')}</span>
               </div>
             </div>
           </div>
           
           <div className="p-6 text-center border-t-2 border-dashed bg-slate-50 print:bg-white print:border-none">
-            <p className="text-sm font-medium mb-4">Terima kasih atas kunjungannya!</p>
+            <p className="text-sm font-medium mb-4">{t.thanks}</p>
             <div className="flex gap-3 print:hidden">
-              <Button variant="outline" className="flex-1" onClick={handlePrint}>
-                Cetak Struk
+              <Button variant="outline" className="flex-1 rounded-xl font-semibold" onClick={handlePrint}>
+                {t.printBtn}
               </Button>
-              <Button className="flex-1 bg-resurva-dark hover:bg-resurva-dark-light text-white" onClick={resetTransaction}>
-                Selesai
+              <Button className="flex-1 bg-resurva-dark hover:bg-resurva-dark-light text-white rounded-xl font-semibold" onClick={resetTransaction}>
+                {t.doneBtn}
               </Button>
             </div>
           </div>
@@ -396,17 +494,15 @@ export default function POSPage() {
     );
   };
 
-  // -- Main UI --
-
   return (
-    <div className="h-full flex overflow-hidden">
+    <div className="h-full flex flex-col lg:flex-row overflow-hidden relative">
       {/* Left: Product Grid */}
-      <div className="flex-1 flex flex-col bg-slate-100 border-r border-slate-200">
-        <div className="p-4 bg-white border-b border-slate-200 flex gap-4 items-center shrink-0">
+      <div className="flex-1 flex flex-col bg-slate-100 border-r border-slate-200 min-w-0">
+        <div className="p-4 bg-white border-b border-slate-200 flex flex-col sm:flex-row gap-4 items-stretch sm:items-center shrink-0">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
             <Input 
-              placeholder="Cari menu..." 
+              placeholder={t.searchPlaceholder} 
               className="pl-10 h-12 bg-slate-50 border-none" 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -427,8 +523,8 @@ export default function POSPage() {
           </div>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        <div className="flex-1 overflow-y-auto p-4 pb-24 lg:p-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
             {filteredProducts.map(product => {
               const price = product.menuType === "Surplus" ? product.surplusPrice : product.originalPrice;
               const hasVariants = product.variantGroups && product.variantGroups.length > 0;
@@ -453,7 +549,7 @@ export default function POSPage() {
                   <div className="p-3 flex flex-col flex-1 justify-between gap-2">
                     <div>
                       <h3 className="font-semibold text-slate-800 text-sm leading-tight line-clamp-2">{product.name}</h3>
-                      {hasVariants && <span className="text-[10px] text-slate-400 mt-1 block">Tersedia Varian</span>}
+                      {hasVariants && <span className="text-[10px] text-slate-400 mt-1 block">{t.availableVariant}</span>}
                     </div>
                     <div>
                       {product.menuType === "Surplus" && (
@@ -469,17 +565,33 @@ export default function POSPage() {
         </div>
       </div>
 
+      {/* Mobile Cart Backdrop */}
+      {mobileCartOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-30 lg:hidden animate-fade-in"
+          onClick={() => setMobileCartOpen(false)}
+        />
+      )}
+
       {/* Right: Cart Panel */}
-      <div className="w-96 bg-white flex flex-col shrink-0 shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)] z-10">
+      <div className={`w-full lg:w-96 bg-white flex flex-col shrink-0 shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)] z-40 fixed lg:static inset-y-0 right-0 h-full lg:h-auto transition-transform duration-300 transform ${mobileCartOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0"}`}>
         <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 shrink-0">
           <div className="flex items-center gap-2 text-slate-800 font-bold text-lg">
             <ShoppingCart className="w-5 h-5 text-resurva-dark" />
-            Pesanan
+            {t.cartTitle}
           </div>
-          <Button variant="ghost" size="sm" onClick={() => setCartItems([])} className="text-red-500 hover:text-red-600 hover:bg-red-50" disabled={cartItems.length === 0}>
-            <Trash2 className="w-4 h-4 mr-2" />
-            Kosongkan
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setCartItems([])} className="text-red-500 hover:text-red-600 hover:bg-red-50" disabled={cartItems.length === 0}>
+              <Trash2 className="w-4 h-4 mr-2" />
+              {t.clearBtn}
+            </Button>
+            <button 
+              onClick={() => setMobileCartOpen(false)} 
+              className="p-2 lg:hidden text-slate-400 hover:text-slate-600 font-bold text-lg rounded-lg hover:bg-slate-200 transition-colors"
+            >
+              ✕
+            </button>
+          </div>
         </div>
         
         {/* Dine-In / Take-away Toggle */}
@@ -488,13 +600,13 @@ export default function POSPage() {
              onClick={() => setOrderType("Dine-In")}
              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${orderType === 'Dine-In' ? 'bg-resurva-dark text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
            >
-             Makan di Tempat
+             {t.dineIn}
            </button>
            <button 
              onClick={() => setOrderType("Take-Away")}
              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${orderType === 'Take-Away' ? 'bg-resurva-dark text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
            >
-             Bungkus
+             {t.takeAway}
            </button>
         </div>
 
@@ -502,7 +614,7 @@ export default function POSPage() {
           {cartItems.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4">
               <ShoppingCart className="w-16 h-16 opacity-20" />
-              <p>Belum ada pesanan</p>
+              <p>{t.emptyCart}</p>
             </div>
           ) : (
             cartItems.map((item) => (
@@ -541,30 +653,54 @@ export default function POSPage() {
           )}
         </div>
 
-        <div className="p-4 border-t border-slate-200 bg-slate-50 shrink-0 space-y-3">
+        <div className="p-4 border-t border-slate-200 bg-slate-50 shrink-0 space-y-3 pb-8 lg:pb-4">
           <div className="space-y-1 mb-2 text-sm">
             <div className="flex justify-between text-slate-500">
-              <span>Subtotal</span>
+              <span>{t.subtotal}</span>
               <span>Rp {subtotal.toLocaleString("id-ID")}</span>
             </div>
             <div className="flex justify-between text-slate-500">
-              <span>Pajak Resto (11%)</span>
+              <span>{t.tax}</span>
               <span>Rp {tax.toLocaleString("id-ID")}</span>
             </div>
           </div>
           <div className="flex justify-between items-center text-lg font-bold text-slate-900 border-t border-slate-200 pt-3">
-            <span>TOTAL</span>
+            <span>{t.total}</span>
             <span>Rp {grandTotal.toLocaleString("id-ID")}</span>
           </div>
           <Button 
             className="w-full bg-resurva-gold hover:bg-resurva-gold/80 text-resurva-dark font-bold h-14 text-lg shadow-md mt-2" 
             disabled={cartItems.length === 0}
-            onClick={() => setPaymentModalOpen(true)}
+            onClick={() => {
+              setMobileCartOpen(false);
+              setPaymentModalOpen(true);
+            }}
           >
-            Bayar Pesanan
+            {t.payBtn}
           </Button>
         </div>
       </div>
+
+      {/* Floating Mobile Cart Button */}
+      {cartItems.length > 0 && !mobileCartOpen && (
+        <div className="lg:hidden fixed bottom-6 left-6 right-6 z-20">
+          <button 
+            onClick={() => setMobileCartOpen(true)}
+            className="w-full bg-resurva-gold hover:bg-resurva-gold/90 text-resurva-dark font-bold py-3.5 px-6 rounded-xl shadow-lg flex items-center justify-between transition-transform active:scale-[0.98]"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="relative">
+                <ShoppingCart className="w-5 h-5" />
+                <span className="absolute -top-2.5 -right-2.5 bg-red-600 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-resurva-gold">
+                  {cartItems.reduce((sum, item) => sum + item.quantity, 0)}
+                </span>
+              </div>
+              <span>{lang === "en" ? "View Cart" : "Lihat Keranjang"}</span>
+            </div>
+            <span className="font-extrabold">Rp {grandTotal.toLocaleString("id-ID")}</span>
+          </button>
+        </div>
+      )}
 
       {renderVariantModal()}
       {renderPaymentModal()}

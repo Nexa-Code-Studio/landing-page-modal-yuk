@@ -22,6 +22,38 @@ export function SharedHeader({ pageTitleMapping, defaultTitle, onToggleSidebar }
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(mockNotifications.length);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [lang, setLang] = useState<"en" | "id">("en");
+
+  // Load language preference from localStorage
+  useEffect(() => {
+    const savedLang = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
+    if (savedLang) {
+      setLang(savedLang);
+    } else {
+      const systemLang = navigator.language.startsWith("id") ? "id" : "en";
+      setLang(systemLang);
+    }
+  }, []);
+
+  // Listen to external language changes (e.g. from other page headers or actions)
+  useEffect(() => {
+    const handleLangChange = () => {
+      const currentSaved = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
+      if (currentSaved && currentSaved !== lang) {
+        setLang(currentSaved);
+      }
+    };
+    window.addEventListener("languageChange", handleLangChange);
+    return () => window.removeEventListener("languageChange", handleLangChange);
+  }, [lang]);
+
+  const toggleLanguage = () => {
+    const newLang = lang === "en" ? "id" : "en";
+    setLang(newLang);
+    localStorage.setItem("preferredLanguage", newLang);
+    // Dispatch a custom event to notify other components (e.g. sidebar or page content)
+    window.dispatchEvent(new Event("languageChange"));
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -52,8 +84,8 @@ export function SharedHeader({ pageTitleMapping, defaultTitle, onToggleSidebar }
   };
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0">
-      <div className="flex items-center gap-4">
+    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 shrink-0">
+      <div className="flex items-center gap-3 md:gap-4">
         {onToggleSidebar && (
           <button 
             onClick={onToggleSidebar}
@@ -62,9 +94,20 @@ export function SharedHeader({ pageTitleMapping, defaultTitle, onToggleSidebar }
             <Menu className="w-5 h-5" />
           </button>
         )}
-        <h1 className="text-xl font-semibold text-slate-800">{getPageTitle()}</h1>
+        <h1 className="text-lg md:text-xl font-semibold text-slate-800 truncate max-w-[200px] sm:max-w-none">{getPageTitle()}</h1>
       </div>
-      <div className="flex items-center gap-4 relative" ref={dropdownRef}>
+      <div className="flex items-center gap-2 md:gap-4 relative" ref={dropdownRef}>
+        {/* Language Switcher */}
+        <button 
+          onClick={toggleLanguage}
+          className="flex items-center gap-1 px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs md:text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors font-medium cursor-pointer"
+        >
+          <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 002 2h2m0-4.5A2.5 2.5 0 0119 5.5v.5a2 2 0 01-2 2h-2M3 12a9 9 0 1118 0 9 9 0 01-18 0z" />
+          </svg>
+          <span>{lang.toUpperCase()}</span>
+        </button>
+
         {/* Notifications */}
         <button 
           onClick={handleNotificationClick}
