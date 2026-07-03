@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { SharedSidebar, MenuItem, ProfileInfo } from "@/components/layout/SharedSidebar";
 import { SharedHeader } from "@/components/layout/SharedHeader";
+import { AIAssistantWidget } from "@/components/enterprise/AIAssistantWidget";
 
 const enterpriseMenus: MenuItem[] = [
   { name: "Waste Analytics", href: "/enterprise/analytics" },
@@ -72,6 +73,7 @@ export default function EnterpriseLayout({
           onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
         />
         <main className="flex-1 overflow-y-auto p-4 md:p-8">{children}</main>
+        <AIAssistantWidget />
       </div>
     </div>
   );

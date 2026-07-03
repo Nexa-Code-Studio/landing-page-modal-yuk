@@ -140,7 +140,7 @@ export function SharedLogin({
         <Button
           variant="outline"
           size="xs"
-          onClick={() => router.back()}
+          onClick={() => router.push("/")}
           className="flex items-center gap-1.5 text-xs font-bold text-resurva-dark border-resurva-dark/20 hover:border-resurva-dark hover:bg-resurva-dark/5 transition-all bg-white/80 backdrop-blur-sm"
         >
           <ArrowLeft size={14} />
