@@ -72,7 +72,7 @@ export default function ChatAIPage() {
       {/* Sidebar History (Left Pane) */}
       <div className="w-full md:w-72 border-r border-slate-200 bg-slate-50 flex flex-col hidden md:flex shrink-0">
         <div className="p-4 border-b border-slate-200">
-          <Button className="w-full bg-slate-900 hover:bg-slate-800 text-white flex items-center gap-2 justify-start h-11 px-4 rounded-xl">
+          <Button className="w-full bg-resurva-dark hover:bg-resurva-dark-light text-white flex items-center gap-2 justify-start h-11 px-4 rounded-xl transition-colors cursor-pointer">
             <Plus className="w-4 h-4" />
             <span className="font-semibold">Percakapan Baru</span>
           </Button>

@@ -67,7 +67,8 @@ export default function MerchantAIChatPage() {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-40px)] w-full overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm">
+    <div className="p-4 md:p-8 h-[calc(100vh-64px)] w-full">
+      <div className="flex flex-col md:flex-row h-full w-full overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm">
       
       {/* Sidebar History (Left Pane) */}
       <div className="w-full md:w-72 border-r border-slate-200 bg-slate-50 flex flex-col hidden md:flex shrink-0">
@@ -184,6 +185,7 @@ export default function MerchantAIChatPage() {
             AI dapat membuat kesalahan. Harap periksa kembali informasi penting terkait penjualan dan stok.
           </p>
         </div>
+      </div>
       </div>
     </div>
   );
