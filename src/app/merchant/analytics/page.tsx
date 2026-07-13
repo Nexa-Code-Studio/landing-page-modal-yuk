@@ -635,7 +635,7 @@ export default function StoreAnalyticsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black tracking-tight text-slate-900">{t.title}</h2>
+          <h1 className="text-2xl font-bold text-slate-900">{t.title}</h1>
           <p className="text-slate-500 text-sm mt-1">{t.description}</p>
         </div>
       </div>

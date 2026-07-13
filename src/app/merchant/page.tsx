@@ -178,7 +178,14 @@ export default function MerchantDashboard() {
   });
 
   return (
-    <div className="space-y-8 p-4 md:p-8">
+    <div className="space-y-8 p-4 md:p-8 animate-in fade-in duration-500">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Dashboard Merchant</h1>
+          <p className="text-slate-500 mt-1">Pantau pesanan baru, kapasitas produk, dan wawasan harian toko Anda.</p>
+        </div>
+      </div>
+
       {/* Overview Cards with Premium Background Icons */}
       {/* Overview Cards with Premium Background Icons */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

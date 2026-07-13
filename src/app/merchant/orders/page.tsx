@@ -512,59 +512,61 @@ export default function OrdersPage() {
   return (
     <div className="space-y-6 p-4 md:p-8 print:p-0 print:m-0 print:bg-white min-h-screen">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden mb-6">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-800">{t.title}</h2>
-          <p className="text-slate-500 text-sm">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-800">{t.title}</h1>
+          <p className="text-slate-500 text-sm mt-1">
             {t.description}
           </p>
         </div>
-        
+      </div>
+
+      {/* Tabs & Search */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 print:hidden">
+        <div className="flex p-1 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-x-auto no-scrollbar w-max">
+          {([t.tabNew, t.tabOngoing, t.tabCompleted] as const).map(tab => {
+            let count = 0;
+            let activeTabKey: "Baru" | "Berlangsung" | "Selesai" = "Baru";
+            if (tab === t.tabNew) {
+              count = orders.filter(o => o.status === "Menunggu Konfirmasi").length;
+              activeTabKey = "Baru";
+            } else if (tab === t.tabOngoing) {
+              count = orders.filter(o => ["Disiapkan", "Siap Diambil"].includes(o.status)).length;
+              activeTabKey = "Berlangsung";
+            } else {
+              activeTabKey = "Selesai";
+            }
+            
+            return (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(activeTabKey)}
+                className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
+                  activeTab === activeTabKey 
+                    ? "bg-resurva-dark text-white shadow-md" 
+                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+                }`}
+              >
+                {tab}
+                {count > 0 && (
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${activeTab === activeTabKey ? "bg-white text-resurva-dark" : "bg-slate-200 text-slate-600"}`}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+
         <div className="relative w-full md:w-72">
-          <Search className="absolute left-3 top-2.5 w-5 h-5 text-slate-400" />
+          <Search className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
           <Input 
             placeholder={t.searchPlaceholder} 
-            className="pl-10 border-slate-200 rounded-xl"
+            className="pl-10 py-5 border-slate-200 rounded-xl"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex p-1 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-x-auto no-scrollbar w-max mb-6 print:hidden">
-        {([t.tabNew, t.tabOngoing, t.tabCompleted] as const).map(tab => {
-          let count = 0;
-          let activeTabKey: "Baru" | "Berlangsung" | "Selesai" = "Baru";
-          if (tab === t.tabNew) {
-            count = orders.filter(o => o.status === "Menunggu Konfirmasi").length;
-            activeTabKey = "Baru";
-          } else if (tab === t.tabOngoing) {
-            count = orders.filter(o => ["Disiapkan", "Siap Diambil"].includes(o.status)).length;
-            activeTabKey = "Berlangsung";
-          } else {
-            activeTabKey = "Selesai";
-          }
-          
-          return (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(activeTabKey)}
-              className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
-                activeTab === activeTabKey 
-                  ? "bg-resurva-dark text-white shadow-md" 
-                  : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-              }`}
-            >
-              {tab}
-              {count > 0 && (
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${activeTab === activeTabKey ? "bg-white text-resurva-dark" : "bg-slate-200 text-slate-600"}`}>
-                  {count}
-                </span>
-              )}
-            </button>
-          )
-        })}
       </div>
 
       {/* Grid Order List */}
