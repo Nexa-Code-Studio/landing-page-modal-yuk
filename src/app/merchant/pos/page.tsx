@@ -135,6 +135,21 @@ export default function POSPage() {
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
 
+  // Broadcast Channel for Customer Facing Display
+  const bcRef = React.useRef<BroadcastChannel | null>(null);
+  
+  useEffect(() => {
+    bcRef.current = new BroadcastChannel("pos-customer-sync");
+    return () => {
+      bcRef.current?.close();
+    };
+  }, []);
+
+
+  const openCustomerDisplay = () => {
+    window.open("/merchant/pos/customer", "customer_display", "width=1024,height=768");
+  };
+
   // Derived state
   const categories = [lang === "en" ? "All" : "Semua", ...Array.from(new Set(products.map(p => p.category)))];
   
@@ -162,6 +177,24 @@ export default function POSPage() {
   const tax = subtotal * 0.11; // 11% PB1
   const grandTotal = subtotal + tax;
   const change = Math.max(0, cashReceived - grandTotal);
+
+  // Broadcast state changes
+  useEffect(() => {
+    if (bcRef.current) {
+      bcRef.current.postMessage({
+        cartItems,
+        subtotal,
+        tax,
+        grandTotal,
+        paymentModalOpen,
+        receiptModalOpen,
+        paymentMethod,
+        cashReceived,
+        change,
+        orderType
+      });
+    }
+  }, [cartItems, subtotal, tax, grandTotal, paymentModalOpen, receiptModalOpen, paymentMethod, cashReceived, change, orderType]);
 
   // -- Action Handlers --
 
@@ -542,6 +575,16 @@ export default function POSPage() {
                 </button>
               ))}
             </div>
+            
+            {/* Customer Display Button */}
+            <Button 
+              onClick={openCustomerDisplay}
+              variant="outline"
+              className="shrink-0 border-resurva-dark text-resurva-dark hover:bg-resurva-dark hover:text-white rounded-xl gap-2 font-bold hidden md:flex"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              {lang === "en" ? "Customer Screen" : "Layar Pelanggan"}
+            </Button>
           </div>
           {/* Categories Tab */}
           <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 border-t border-slate-100 pt-2">
