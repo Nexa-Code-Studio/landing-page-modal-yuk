@@ -49,8 +49,31 @@ export default function EnterpriseProfilePage() {
           <form onSubmit={handleSave} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="logoUrl">URL Logo / Foto Profil</Label>
-                <Input id="logoUrl" placeholder="https://example.com/logo.png" value={draft.logoUrl} onChange={e => setDraft(d => ({ ...d, logoUrl: e.target.value }))} />
+                <Label>Logo / Foto Profil</Label>
+                <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center bg-slate-50 relative group hover:bg-slate-100 transition-colors cursor-pointer">
+                  {draft.logoUrl ? (
+                    <img src={draft.logoUrl} alt="Logo" className="w-24 h-24 rounded-full object-cover shadow-sm border border-slate-200 mb-3" />
+                  ) : (
+                    <div className="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center mb-3">
+                      <Target className="w-8 h-8 text-slate-400" />
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-500 text-center font-medium group-hover:text-slate-700 transition-colors">
+                    Klik atau Tarik gambar ke sini untuk mengunggah
+                  </p>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        const file = e.target.files[0];
+                        const url = URL.createObjectURL(file);
+                        setDraft(d => ({ ...d, logoUrl: url }));
+                      }
+                    }} 
+                    className="absolute inset-0 opacity-0 cursor-pointer" 
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="companyName">Nama Perusahaan</Label>
