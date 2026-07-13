@@ -6,35 +6,18 @@ import { Users, DollarSign, Package, TrendingUp } from "lucide-react";
 
 export default function EnterprisePage() {
   const recentActivities = [
-    {
-      id: 1,
-      title: "Pendaftaran Mitra Baru",
-      description: "Cabang Jakarta Pusat telah bergabung",
-      time: "2 jam yang lalu",
-      status: "success",
-    },
-    {
-      id: 2,
-      title: "Lonjakan Surplus",
-      description: "Cabang Surabaya melaporkan 50kg surplus harian",
-      time: "5 jam yang lalu",
-      status: "warning",
-    },
-    {
-      id: 3,
-      title: "Pencairan Komisi",
-      description: "Berhasil mencairkan komisi ke Cabang Malang",
-      time: "1 hari yang lalu",
-      status: "default",
-    },
+    { id: 1, title: "Pendaftaran Mitra Baru", description: "Cabang Jakarta Pusat telah bergabung", time: "2 jam yang lalu", status: "success" },
+    { id: 2, title: "Lonjakan Surplus", description: "Cabang Surabaya melaporkan 50kg surplus harian", time: "5 jam yang lalu", status: "warning" },
+    { id: 3, title: "Pencairan Komisi", description: "Berhasil mencairkan komisi ke Cabang Malang", time: "1 hari yang lalu", status: "default" },
   ];
 
   return (
-    <div className="space-y-8">
-      {/* Welcome Section */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Selamat datang kembali, HQ!</h1>
-        <p className="text-slate-500 mt-1">Berikut adalah ringkasan performa seluruh mitra Anda hari ini.</p>
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Ringkasan Eksekutif</h1>
+          <p className="text-slate-500 mt-1">Pantau performa agregat mitra dan ringkasan aktivitas.</p>
+        </div>
       </div>
 
       {/* Top Stats Cards */}
@@ -107,16 +90,10 @@ export default function EnterprisePage() {
                     activity.status === "warning" ? "bg-amber-500" : "bg-slate-300"
                   }`} />
                   <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium text-slate-900 leading-none">
-                      {activity.title}
-                    </p>
-                    <p className="text-sm text-slate-500">
-                      {activity.description}
-                    </p>
+                    <p className="text-sm font-medium text-slate-900 leading-none">{activity.title}</p>
+                    <p className="text-sm text-slate-500">{activity.description}</p>
                   </div>
-                  <div className="text-xs text-slate-400">
-                    {activity.time}
-                  </div>
+                  <div className="text-xs text-slate-400">{activity.time}</div>
                 </div>
               ))}
             </div>

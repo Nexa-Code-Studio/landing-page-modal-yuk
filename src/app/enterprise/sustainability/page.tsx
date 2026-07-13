@@ -140,7 +140,7 @@ export default function SustainabilityPage() {
           </div>
           <div className="w-full md:w-64 aspect-square bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center relative overflow-hidden shrink-0">
              <div className="absolute inset-0 bg-gradient-to-b from-transparent to-slate-100/50" />
-             <Gift className="w-24 h-24 text-emerald-600 relative z-10 animate-bounce" style={{ animationDuration: '3s' }} />
+             <Gift className="w-24 h-24 text-emerald-600 relative z-10" />
              <div className="absolute top-4 right-4 animate-pulse">
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.6)]" />
              </div>

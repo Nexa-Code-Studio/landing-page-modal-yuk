@@ -10,6 +10,7 @@ const enterpriseMenus: MenuItem[] = [
   { name: "SDG Sustainability", href: "/enterprise/sustainability" },
   { name: "Leaderboard Mitra", href: "/enterprise/leaderboard" },
   { name: "Manajemen Mitra", href: "/enterprise/partners" },
+  { name: "Keuangan", href: "/enterprise/finance" },
   { name: "Profil", href: "/enterprise/profile" },
   { name: "Chat AI", href: "/enterprise/chat" },
 ];
@@ -25,6 +26,7 @@ const titleMapping = {
   "/enterprise/sustainability": "Sustainability Reporting (SDG)",
   "/enterprise/leaderboard": "Leaderboard Kinerja Mitra",
   "/enterprise/partners": "Manajemen Mitra",
+  "/enterprise/finance": "Keuangan & Cashflow HQ",
   "/enterprise/profile": "Profil Perusahaan",
   "/enterprise/chat": "Chat AI Assistant",
 };
