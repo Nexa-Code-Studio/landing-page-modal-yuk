@@ -1,5 +1,10 @@
+import type { Metadata } from "next";
 import React from "react";
 import { SharedLogin } from "@/components/auth/SharedLogin";
+
+export const metadata: Metadata = {
+  title: "Resurva - Login Superadmin",
+};
 
 export default function LoginSuperadmin() {
   return (

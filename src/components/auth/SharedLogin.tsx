@@ -134,6 +134,7 @@ export function SharedLogin({
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
+    document.title = `Resurva - Login ${roleName}`;
     const savedLang = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
     if (savedLang) {
       setLang(savedLang);
@@ -141,7 +142,7 @@ export function SharedLogin({
       const systemLang = navigator.language.startsWith("id") ? "id" : "en";
       setLang(systemLang);
     }
-  }, []);
+  }, [roleName]);
 
   const toggleLanguage = () => {
     const newLang = lang === "en" ? "id" : "en";

@@ -37,7 +37,9 @@ const SIDEBAR_TRANSLATIONS = {
     "Cabang Malang": "Malang Branch",
     "Pusat Manajemen": "Management HQ",
     "Pusat Kendali": "Control Center",
-    "Analitik Toko": "Store Analytics"
+    "Analitik Toko": "Store Analytics",
+    "Finance": "Finance",
+    "Keuangan": "Finance"
   },
   id: {
     "Dashboard": "Dasbor",
@@ -53,7 +55,9 @@ const SIDEBAR_TRANSLATIONS = {
     "Cabang Malang": "Cabang Malang",
     "Pusat Manajemen": "Pusat Manajemen",
     "Pusat Kendali": "Pusat Kendali",
-    "Analitik Toko": "Analitik Toko"
+    "Analitik Toko": "Analitik Toko",
+    "Finance": "Keuangan",
+    "Keuangan": "Keuangan"
   }
 };
 

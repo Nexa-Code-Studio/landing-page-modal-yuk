@@ -58,6 +58,7 @@ const TRANSLATIONS = {
     typeLabel: "Batch Type",
     expiryLabel: "Expiry Date & Time",
     pcs: "pcs",
+    seeMore: "See More",
   },
   id: {
     title: "Pemantau Kedaluwarsa Real-Time",
@@ -96,6 +97,7 @@ const TRANSLATIONS = {
     typeLabel: "Tipe Batch",
     expiryLabel: "Tanggal & Jam Kedaluwarsa",
     pcs: "pcs",
+    seeMore: "Lihat Selengkapnya",
   }
 };
 
@@ -774,9 +776,11 @@ export default function InventoryPage() {
                                   ) : (
                                     <div className="relative pl-4 space-y-1 max-w-2xl">
                                       {/* The vertical line in the tree */}
-                                      <div className="absolute left-[9px] top-2 bottom-[24px] w-[2px] bg-slate-200"></div>
+                                      <div className={`absolute left-[9px] top-2 w-[2px] bg-slate-200 ${
+                                        surplusBatches.length > 5 ? "bottom-[18px]" : "bottom-[24px]"
+                                      }`}></div>
                                       
-                                      {surplusBatches.map((batch) => {
+                                      {surplusBatches.slice(0, 5).map((batch) => {
                                         const batchTag = getBatchTag(product, batch);
                                         const isSurplus = isBatchSurplus(product, batch);
                                         const price = isSurplus ? product.surplusPrice : product.originalPrice;
@@ -869,6 +873,18 @@ export default function InventoryPage() {
                                           </div>
                                         );
                                       })}
+                                      {surplusBatches.length > 5 && (
+                                        <div className="relative flex items-center py-1.5 pl-4 mt-1">
+                                          {/* The horizontal branch connector */}
+                                          <div className="absolute left-[-15px] top-[14px] w-4 h-[2px] bg-slate-200"></div>
+                                          <button
+                                            onClick={() => router.push(`/merchant/inventory/${product.id}`)}
+                                            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1 cursor-pointer pl-1.5"
+                                          >
+                                            {t.seeMore} &rarr;
+                                          </button>
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                 </div>
@@ -1101,9 +1117,11 @@ export default function InventoryPage() {
                                   ) : (
                                     <div className="relative pl-4 space-y-1 max-w-2xl">
                                       {/* The vertical line in the tree */}
-                                      <div className="absolute left-[9px] top-2 bottom-[24px] w-[2px] bg-slate-200"></div>
+                                      <div className={`absolute left-[9px] top-2 w-[2px] bg-slate-200 ${
+                                        activeBatches.length > 5 ? "bottom-[18px]" : "bottom-[24px]"
+                                      }`}></div>
                                       
-                                      {activeBatches.map((batch) => {
+                                      {activeBatches.slice(0, 5).map((batch) => {
                                         const batchTag = getBatchTag(product, batch);
                                         const isSurplus = isBatchSurplus(product, batch);
                                         const price = isSurplus ? product.surplusPrice : product.originalPrice;
@@ -1196,6 +1214,18 @@ export default function InventoryPage() {
                                           </div>
                                         );
                                       })}
+                                      {activeBatches.length > 5 && (
+                                        <div className="relative flex items-center py-1.5 pl-4 mt-1">
+                                          {/* The horizontal branch connector */}
+                                          <div className="absolute left-[-15px] top-[14px] w-4 h-[2px] bg-slate-200"></div>
+                                          <button
+                                            onClick={() => router.push(`/merchant/inventory/${product.id}`)}
+                                            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors flex items-center gap-1 cursor-pointer pl-1.5"
+                                          >
+                                            {t.seeMore} &rarr;
+                                          </button>
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                 </div>

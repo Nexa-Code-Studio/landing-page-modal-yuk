@@ -357,6 +357,10 @@ function EmojiCurtain({ emojis, id }: { emojis: string[]; id: string }) {
 export default function ResurvaWrappedPage() {
   const [copied, setCopied] = useState(false);
 
+  useEffect(() => {
+    document.title = "Resurva - Enterprise Wrapped 2024";
+  }, []);
+
   const branchRef = useRef<HTMLDivElement>(null);
   const ordersRef = useRef<HTMLDivElement>(null);
   const foodRef = useRef<HTMLDivElement>(null);

@@ -1,139 +1,14 @@
-"use client";
+import type { Metadata } from "next";
+import MerchantLayoutClient from "./MerchantLayoutClient";
 
-import React, { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
-import { SharedSidebar, MenuItem, ProfileInfo } from "@/components/layout/SharedSidebar";
-import { SharedHeader } from "@/components/layout/SharedHeader";
-import { MerchantProvider, useMerchantContext } from "@/lib/contexts/MerchantContext";
-
-const merchantProfile: ProfileInfo = {
-  name: "UMKM Berkah",
-  subtext: "Cabang Malang",
-  initials: "UM",
+export const metadata: Metadata = {
+  title: "Resurva - Merchant",
 };
-
-function MerchantLayoutContent({ children }: { children: React.ReactNode }) {
-  const { orders } = useMerchantContext();
-  const pathname = usePathname();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [lang, setLang] = useState<"en" | "id">("en");
-
-  // Load language preference from localStorage
-  useEffect(() => {
-    const savedLang = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
-    if (savedLang) {
-      setLang(savedLang);
-    } else {
-      const systemLang = navigator.language.startsWith("id") ? "id" : "en";
-      setLang(systemLang);
-    }
-
-    const handleLangChange = () => {
-      const currentSaved = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
-      if (currentSaved) {
-        setLang(currentSaved);
-      }
-    };
-    window.addEventListener("languageChange", handleLangChange);
-    return () => window.removeEventListener("languageChange", handleLangChange);
-  }, []);
-
-  const titleMapping = lang === "en" ? {
-    "/merchant": "Dashboard",
-    "/merchant/pos": "Cashier / Point of Sale",
-    "/merchant/analytics": "Store Analytics",
-    "/merchant/inventory": "Inventory Management",
-    "/merchant/orders": "Orders & Logistics",
-    "/merchant/ai-chat": "AI Chat",
-    "/merchant/profile": "Store Profile",
-  } : {
-    "/merchant": "Dasbor",
-    "/merchant/pos": "Kasir / Point of Sale",
-    "/merchant/analytics": "Analitik Toko",
-    "/merchant/inventory": "Manajemen Inventaris",
-    "/merchant/orders": "Pesanan & Logistik",
-    "/merchant/ai-chat": "AI Chat",
-    "/merchant/profile": "Profil Toko",
-  };
-
-  // Open/close sidebar based on initial screen size
-  useEffect(() => {
-    if (window.innerWidth >= 768) {
-      setIsSidebarOpen(true);
-    }
-  }, []);
-
-  // Auto-close sidebar on mobile when route changes
-  useEffect(() => {
-    if (window.innerWidth < 768) {
-      setIsSidebarOpen(false);
-    }
-  }, [pathname]);
-
-  const newOrdersCount = orders.filter(o => o.status === "Menunggu Konfirmasi").length;
-
-  const menus: MenuItem[] = lang === "en" ? [
-    { name: "Dashboard", href: "/merchant" },
-    { name: "Cashier (POS)", href: "/merchant/pos" },
-    { name: "Store Analytics", href: "/merchant/analytics" },
-    { name: "Inventory", href: "/merchant/inventory" },
-    { 
-      name: "Orders", 
-      href: "/merchant/orders",
-      badge: newOrdersCount > 0 ? newOrdersCount.toString() : undefined
-    },
-    { name: "AI Chat", href: "/merchant/ai-chat" },
-    { name: "Store Profile", href: "/merchant/profile" },
-  ] : [
-    { name: "Dasbor", href: "/merchant" },
-    { name: "Kasir (POS)", href: "/merchant/pos" },
-    { name: "Analitik Toko", href: "/merchant/analytics" },
-    { name: "Inventaris", href: "/merchant/inventory" },
-    { 
-      name: "Pesanan", 
-      href: "/merchant/orders",
-      badge: newOrdersCount > 0 ? newOrdersCount.toString() : undefined
-    },
-    { name: "AI Chat", href: "/merchant/ai-chat" },
-    { name: "Profil Toko", href: "/merchant/profile" },
-  ];
-
-  return (
-    <div className="h-screen w-full flex bg-slate-50 text-slate-900 overflow-hidden relative">
-      {/* Backdrop for mobile */}
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-40 md:hidden"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-      
-      <SharedSidebar 
-        roleName="Merchant" 
-        menus={menus} 
-        profile={merchantProfile} 
-        isOpen={isSidebarOpen}
-      />
-      <div className="flex-1 flex flex-col min-w-0">
-        <SharedHeader 
-          pageTitleMapping={titleMapping} 
-          defaultTitle="Merchant Area" 
-          onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-        />
-        <main className="flex-1 overflow-y-auto">{children}</main>
-      </div>
-    </div>
-  );
-}
 
 export default function MerchantLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <MerchantProvider>
-      <MerchantLayoutContent>{children}</MerchantLayoutContent>
-    </MerchantProvider>
-  );
+  return <MerchantLayoutClient>{children}</MerchantLayoutClient>;
 }

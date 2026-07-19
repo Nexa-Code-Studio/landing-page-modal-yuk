@@ -88,7 +88,7 @@ const TRANSLATIONS = {
 };
 
 export default function MerchantDashboard() {
-  const { products, orders } = useMerchantContext();
+  const { products, orders, newOrdersCount, newOrdersPreview } = useMerchantContext();
   const aiWidgetRef = useRef<HTMLDivElement>(null);
   const [lang, setLang] = useState<"en" | "id">("en");
 
@@ -114,12 +114,13 @@ export default function MerchantDashboard() {
 
   const t = TRANSLATIONS[lang];
 
-  // Filter orders to show only new orders (Menunggu Konfirmasi) created today
-  const newOrdersToday = orders.filter((order) => {
-    const isNew = order.status === "Menunggu Konfirmasi";
+  // Pendapatan hari ini: pesanan selesai/sedang berlangsung hari ini
+  const todayOrders = orders.filter((order) => {
     const isToday = new Date(order.createdAt).toDateString() === new Date().toDateString();
-    return isNew && isToday;
-  }).slice(0, 5);
+    const isActive = order.status !== "Dibatalkan";
+    return isToday && isActive;
+  });
+  const todayRevenue = todayOrders.reduce((acc, order) => acc + order.totalAmount, 0);
 
   // Calculate total items sold & emissions saved
   const totalItemsSold = orders.reduce(
@@ -212,7 +213,7 @@ export default function MerchantDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-slate-900">{newOrdersToday.length}</div>
+            <div className="text-3xl font-black text-slate-900">{newOrdersCount}</div>
             <p className="text-xs text-blue-600 mt-1 font-semibold flex items-center gap-1">
               Butuh konfirmasi
             </p>
@@ -228,7 +229,7 @@ export default function MerchantDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-black text-slate-900">
-              Rp {orders.reduce((acc, order) => acc + order.totalAmount, 0).toLocaleString("id-ID")}
+              Rp {todayRevenue.toLocaleString("id-ID")}
             </div>
             <p className="text-xs text-emerald-600 mt-1 font-semibold flex items-center gap-1">
               Pendapatan harian
@@ -334,26 +335,32 @@ export default function MerchantDashboard() {
           </CardHeader>
           <CardContent className="flex-1 flex flex-col justify-between">
             <div className="space-y-3">
-              {newOrdersToday.length === 0 ? (
+              {newOrdersPreview.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center py-16 text-center text-slate-400">
                   <ShoppingBag className="w-12 h-12 text-slate-200 mb-2" />
                   <p className="text-sm font-medium">{t.noNewOrders}</p>
                 </div>
               ) : (
-                newOrdersToday.map((order) => (
-                  <div key={order.id} className="flex items-center justify-between p-3.5 border border-slate-100 rounded-xl hover:bg-slate-50 transition-colors shadow-sm bg-white">
-                    <div>
-                      <p className="font-bold text-sm text-slate-800">{order.id} - {order.customerName}</p>
-                      <p className="text-xs text-slate-500 mt-1">
+                newOrdersPreview.map((order) => (
+                  <Link key={order.id} href="/merchant/orders" className="flex items-center justify-between p-3 border border-slate-100 rounded-xl hover:bg-blue-50/50 transition-colors shadow-sm bg-white">
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm text-slate-800 truncate">
+                        {order.dailyCode ? `#${order.dailyCode}` : order.id.slice(0, 8)} — {order.customerName}
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5 truncate">
                         {order.items.map(i => `${i.qty}x ${i.name}`).join(', ')}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {getOrderStatusIcon(order.status)}
-                      <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-full">{order.status}</span>
-                    </div>
-                  </div>
+                    <span className="ml-2 shrink-0 text-xs text-slate-400 font-medium whitespace-nowrap">
+                      {new Date(order.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}, {new Date(order.createdAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </Link>
                 ))
+              )}
+              {newOrdersCount > 5 && (
+                <Link href="/merchant/orders" className="block text-center text-xs text-blue-600 font-bold hover:underline py-2">
+                  +{newOrdersCount - 5} pesanan lainnya → Lihat semua
+                </Link>
               )}
             </div>
           </CardContent>

@@ -1,13 +1,13 @@
 /**
  * Central API client for resurva backend.
- * Base URL: http://localhost:8000/api/v1
+ * Base URL: https://api.resurva.my.id/api/v1
  *
  * Usage:
  *   import { apiClient } from "@/lib/api";
  *   const products = await apiClient.get("/products?store_id=...");
  */
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api/v1";
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://api.resurva.my.id/api/v1";
 
 // ─── Token helpers ────────────────────────────────────────────────────────────
 
@@ -48,6 +48,63 @@ export interface LoginResponse {
 
 // ─── Core fetcher ─────────────────────────────────────────────────────────────
 
+let isRefreshing = false;
+let refreshSubscribers: ((token: string) => void)[] = [];
+
+function subscribeTokenRefresh(cb: (token: string) => void) {
+  refreshSubscribers.push(cb);
+}
+
+function onRefreshed(token: string) {
+  refreshSubscribers.forEach((cb) => cb(token));
+  refreshSubscribers = [];
+}
+
+async function tryRefreshToken(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  const refreshToken = localStorage.getItem("refresh_token");
+  if (!refreshToken) return false;
+
+  if (isRefreshing) {
+    return new Promise((resolve) => {
+      subscribeTokenRefresh((token) => {
+        resolve(!!token);
+      });
+    });
+  }
+
+  isRefreshing = true;
+
+  try {
+    const response = await fetch(`${BASE_URL}/auth/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      setTokens(data.access_token, data.refresh_token);
+      localStorage.setItem("auth_user", JSON.stringify(data.user));
+      isRefreshing = false;
+      onRefreshed(data.access_token);
+      return true;
+    } else {
+      clearTokens();
+      isRefreshing = false;
+      onRefreshed("");
+      window.location.href = "/login-merchant";
+      return false;
+    }
+  } catch (err) {
+    isRefreshing = false;
+    onRefreshed("");
+    return false;
+  }
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {}
@@ -63,10 +120,41 @@ async function request<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${BASE_URL}${path}`, {
+  let response = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers,
   });
+
+  if (response.status === 401) {
+    let isExpired = false;
+    try {
+      const clone = response.clone();
+      const body = await clone.json();
+      if (body.detail === "Token has expired" || body.detail === "Signature has expired") {
+        isExpired = true;
+      }
+    } catch {
+      // ignore
+    }
+
+    if (isExpired) {
+      const refreshed = await tryRefreshToken();
+      if (refreshed) {
+        const newToken = getAccessToken();
+        const retryHeaders: Record<string, string> = {
+          "Content-Type": "application/json",
+          ...(options.headers as Record<string, string>),
+        };
+        if (newToken) {
+          retryHeaders["Authorization"] = `Bearer ${newToken}`;
+        }
+        response = await fetch(`${BASE_URL}${path}`, {
+          ...options,
+          headers: retryHeaders,
+        });
+      }
+    }
+  }
 
   if (!response.ok) {
     let errorDetail = `HTTP ${response.status}`;

@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
-import { useMerchantContext, Order } from "@/lib/contexts/MerchantContext";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { useMerchantContext, Order, OrderStatus, OrderType, mapBackendOrder, BackendOrder, PaginatedResponse } from "@/lib/contexts/MerchantContext";
+import { apiClient } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,9 @@ import {
   User, 
   AlertCircle, 
   NotepadText, 
-  ChevronRight 
+  ChevronRight,
+  Check,
+  X
 } from "lucide-react";
 
 const TRANSLATIONS = {
@@ -117,10 +120,17 @@ const TRANSLATIONS = {
 };
 
 export default function OrdersPage() {
-  const { orders, updateOrderStatus } = useMerchantContext();
+  const { orders, updateOrderStatus, storeId } = useMerchantContext();
   const [activeTab, setActiveTab] = useState<"Baru" | "Berlangsung" | "Selesai">("Baru");
   const [searchQuery, setSearchQuery] = useState("");
   const [lang, setLang] = useState<"en" | "id">("en");
+
+  // Tab data pagination state
+  const [tabData, setTabData] = useState({
+    Baru: { items: [] as Order[], page: 1, hasMore: true, loading: false, total: 0 },
+    Berlangsung: { items: [] as Order[], page: 1, hasMore: true, loading: false, total: 0 },
+    Selesai: { items: [] as Order[], page: 1, hasMore: true, loading: false, total: 0 }
+  });
 
   // Load language preference from localStorage
   useEffect(() => {
@@ -161,49 +171,221 @@ export default function OrdersPage() {
     }
   };
 
+  const getStatusCircle = (status: string) => {
+    switch (status) {
+      case "Menunggu Konfirmasi":
+        return (
+          <div className="w-7 h-7 rounded-full bg-orange-100 text-orange-600 border border-orange-200 flex items-center justify-center shrink-0 shadow-sm" title="Menunggu Konfirmasi">
+            <Clock className="w-3.5 h-3.5" />
+          </div>
+        );
+      case "Disiapkan":
+        return (
+          <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0 shadow-sm" title="Disiapkan">
+            <Package className="w-3.5 h-3.5" />
+          </div>
+        );
+      case "Siap Diambil":
+        return (
+          <div className="w-7 h-7 rounded-full bg-purple-100 text-purple-600 border border-purple-200 flex items-center justify-center shrink-0 shadow-sm" title="Siap Diambil">
+            <CheckCircle className="w-3.5 h-3.5" />
+          </div>
+        );
+      case "Selesai":
+        return (
+          <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0 shadow-sm" title="Selesai">
+            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+          </div>
+        );
+      case "Dibatalkan":
+        return (
+          <div className="w-7 h-7 rounded-full bg-red-100 text-red-600 border border-red-200 flex items-center justify-center shrink-0 shadow-sm" title="Dibatalkan">
+            <X className="w-3.5 h-3.5 stroke-[2.5]" />
+          </div>
+        );
+      default:
+        return (
+          <div className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 border border-slate-200 flex items-center justify-center shrink-0 shadow-sm" title={status}>
+            <Clock className="w-3.5 h-3.5" />
+          </div>
+        );
+    }
+  };
+
   const getOrderIcon = (type: string) => {
     if (type.includes("Delivery")) return <MapPin className="w-3.5 h-3.5" />;
     if (type.includes("Pickup")) return <Package className="w-3.5 h-3.5" />;
     return <Store className="w-3.5 h-3.5" />;
   };
 
+  // loadNextPage handles infinite scroll loading for a specific tab
+  const loadNextPage = useCallback(async (tab: "Baru" | "Berlangsung" | "Selesai", isInitial = false) => {
+    if (!storeId) return;
+
+    // Check loading or end of data
+    let current = tabData[tab];
+    if (!isInitial && (current.loading || !current.hasMore)) return;
+
+    setTabData(prev => ({
+      ...prev,
+      [tab]: { ...prev[tab], loading: true }
+    }));
+
+    const pageToLoad = isInitial ? 1 : tabData[tab].page + 1;
+    const pageSize = 12;
+
+    let statusQuery = "";
+    if (tab === "Baru") statusQuery = "pending";
+    else if (tab === "Berlangsung") statusQuery = "paid,prepared";
+    else if (tab === "Selesai") statusQuery = "completed,cancelled";
+
+    try {
+      const url = `/orders/?store_id=${storeId}&status=${statusQuery}&page=${pageToLoad}&page_size=${pageSize}`;
+      const response = await apiClient.get<PaginatedResponse<BackendOrder>>(url);
+      const mapped = response.items.map((bo: BackendOrder) => mapBackendOrder(bo));
+      const totalCount = response.pagination ? response.pagination.total : mapped.length;
+
+      setTabData(prev => {
+        const curr = prev[tab];
+        const newItems = isInitial ? mapped : [...curr.items, ...mapped];
+        // Deduplicate
+        const uniqueItems = newItems.filter((item: Order, index: number, self: Order[]) =>
+          self.findIndex((o: Order) => o.id === item.id) === index
+        );
+        const hasMore = mapped.length === pageSize;
+        return {
+          ...prev,
+          [tab]: {
+            items: uniqueItems,
+            page: pageToLoad,
+            hasMore: hasMore,
+            loading: false,
+            total: totalCount
+          }
+        };
+      });
+    } catch (err) {
+      console.error("[OrdersPage] loadNextPage failed:", err);
+      setTabData(prev => ({
+        ...prev,
+        [tab]: { ...prev[tab], loading: false }
+      }));
+    }
+  }, [storeId, tabData]);
+
+  // Sync / Reset on store changes
+  useEffect(() => {
+    if (storeId) {
+      setTabData({
+        Baru: { items: [], page: 1, hasMore: true, loading: false, total: 0 },
+        Berlangsung: { items: [], page: 1, hasMore: true, loading: false, total: 0 },
+        Selesai: { items: [], page: 1, hasMore: true, loading: false, total: 0 }
+      });
+      loadNextPage("Baru", true);
+      loadNextPage("Berlangsung", true);
+      if (activeTab === "Selesai") {
+        loadNextPage("Selesai", true);
+      }
+    }
+  }, [storeId]);
+
+  // Sync tab page on tab switch
+  useEffect(() => {
+    if (storeId && tabData[activeTab].items.length === 0 && tabData[activeTab].hasMore && !tabData[activeTab].loading) {
+      loadNextPage(activeTab, true);
+    }
+  }, [activeTab, storeId, loadNextPage, tabData]);
+
+  // Global scroll listener for window scroll to trigger page loads
+  useEffect(() => {
+    const handleScroll = () => {
+      const current = tabData[activeTab];
+      if (current.loading || !current.hasMore) return;
+
+      const threshold = 150;
+      const totalHeight = document.documentElement.scrollHeight;
+      const scrollPosition = window.innerHeight + window.scrollY;
+
+      if (totalHeight - scrollPosition < threshold) {
+        loadNextPage(activeTab);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [activeTab, tabData, loadNextPage]);
+
   const filteredOrders = useMemo(() => {
-    return orders.filter(order => {
-      let matchesTab = false;
-      if (activeTab === "Baru") matchesTab = order.status === "Menunggu Konfirmasi";
-      if (activeTab === "Berlangsung") matchesTab = ["Disiapkan", "Siap Diambil"].includes(order.status);
-      if (activeTab === "Selesai") matchesTab = ["Selesai", "Dibatalkan"].includes(order.status);
-      
-      const matchesSearch = 
-        order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.customerName.toLowerCase().includes(searchQuery.toLowerCase());
-        
-      return matchesTab && matchesSearch;
-    }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [orders, activeTab, searchQuery]);
+    const currentItems = tabData[activeTab].items;
+    if (!searchQuery) return currentItems;
+    return currentItems.filter(order =>
+      order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (order.dailyCode && order.dailyCode.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      order.customerName.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [tabData, activeTab, searchQuery]);
 
   // Actions
-  const handleConfirm = (e: React.MouseEvent, id: string) => {
+  const handleConfirm = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    updateOrderStatus(id, "Disiapkan");
-    if (selectedOrderModal?.id === id) {
-      setSelectedOrderModal(prev => prev ? { ...prev, status: "Disiapkan" } : null);
+    try {
+      await updateOrderStatus(id, "Disiapkan");
+      setTabData(prev => {
+        const itemToMove = prev.Baru.items.find(o => o.id === id);
+        if (!itemToMove) return prev;
+        const updatedItem = { ...itemToMove, status: "Disiapkan" as OrderStatus };
+        return {
+          ...prev,
+          Baru: { ...prev.Baru, items: prev.Baru.items.filter(o => o.id !== id), total: Math.max(0, prev.Baru.total - 1) },
+          Berlangsung: { ...prev.Berlangsung, items: [updatedItem, ...prev.Berlangsung.items], total: prev.Berlangsung.total + 1 }
+        };
+      });
+      if (selectedOrderModal?.id === id) {
+        setSelectedOrderModal(prev => prev ? { ...prev, status: "Disiapkan" } : null);
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  const handleMarkReady = (e: React.MouseEvent, id: string) => {
+  const handleMarkReady = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    updateOrderStatus(id, "Siap Diambil");
-    if (selectedOrderModal?.id === id) {
-      setSelectedOrderModal(prev => prev ? { ...prev, status: "Siap Diambil" } : null);
+    try {
+      await updateOrderStatus(id, "Siap Diambil");
+      setTabData(prev => {
+        const items = prev.Berlangsung.items.map(o => o.id === id ? { ...o, status: "Siap Diambil" as OrderStatus } : o);
+        return {
+          ...prev,
+          Berlangsung: { ...prev.Berlangsung, items }
+        };
+      });
+      if (selectedOrderModal?.id === id) {
+        setSelectedOrderModal(prev => prev ? { ...prev, status: "Siap Diambil" } : null);
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  const handleHandover = (e: React.MouseEvent, id: string) => {
+  const handleHandover = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    updateOrderStatus(id, "Selesai");
-    if (selectedOrderModal?.id === id) {
-      setSelectedOrderModal(prev => prev ? { ...prev, status: "Selesai" } : null);
+    try {
+      await updateOrderStatus(id, "Selesai");
+      setTabData(prev => {
+        const itemToMove = prev.Berlangsung.items.find(o => o.id === id);
+        if (!itemToMove) return prev;
+        const updatedItem = { ...itemToMove, status: "Selesai" as OrderStatus };
+        return {
+          ...prev,
+          Berlangsung: { ...prev.Berlangsung, items: prev.Berlangsung.items.filter(o => o.id !== id), total: Math.max(0, prev.Berlangsung.total - 1) },
+          Selesai: { ...prev.Selesai, items: [updatedItem, ...prev.Selesai.items], total: prev.Selesai.total + 1 }
+        };
+      });
+      if (selectedOrderModal?.id === id) {
+        setSelectedOrderModal(prev => prev ? { ...prev, status: "Selesai" } : null);
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -214,14 +396,28 @@ export default function OrdersPage() {
     setRejectModalOpen(true);
   };
 
-  const confirmReject = () => {
+  const confirmReject = async () => {
     if (orderToReject && rejectReason) {
-      updateOrderStatus(orderToReject, "Dibatalkan");
-      if (selectedOrderModal?.id === orderToReject) {
-        setSelectedOrderModal(prev => prev ? { ...prev, status: "Dibatalkan" } : null);
+      try {
+        await updateOrderStatus(orderToReject, "Dibatalkan");
+        setTabData(prev => {
+          const itemToMove = prev.Baru.items.find(o => o.id === orderToReject);
+          if (!itemToMove) return prev;
+          const updatedItem = { ...itemToMove, status: "Dibatalkan" as OrderStatus };
+          return {
+            ...prev,
+            Baru: { ...prev.Baru, items: prev.Baru.items.filter(o => o.id !== orderToReject), total: Math.max(0, prev.Baru.total - 1) },
+            Selesai: { ...prev.Selesai, items: [updatedItem, ...prev.Selesai.items], total: prev.Selesai.total + 1 }
+          };
+        });
+        if (selectedOrderModal?.id === orderToReject) {
+          setSelectedOrderModal(prev => prev ? { ...prev, status: "Dibatalkan" } : null);
+        }
+        setRejectModalOpen(false);
+        setOrderToReject(null);
+      } catch (err) {
+        console.error(err);
       }
-      setRejectModalOpen(false);
-      setOrderToReject(null);
     }
   };
 
@@ -245,7 +441,7 @@ export default function OrdersPage() {
 
         {/* Order Number Box */}
         <div className="text-center font-bold text-xl border-y border-dashed border-black py-2 my-2">
-          #{order.id.replace("ORD-", "")}
+          #{order.dailyCode || order.id.replace("ORD-", "")}
         </div>
 
         {/* Customer Info */}
@@ -260,7 +456,7 @@ export default function OrdersPage() {
           </div>
           <div className="flex">
             <span className="w-32">{t.orderNoLabel}:</span>
-            <span className="flex-1">{order.id}</span>
+            <span className="flex-1">{order.dailyCode || order.id}</span>
           </div>
           {order.notes && (
             <div className="flex pt-1 mt-1 border-t border-dotted">
@@ -278,7 +474,13 @@ export default function OrdersPage() {
             <div key={idx} className="flex flex-col">
               <div className="flex justify-between items-start">
                 <span className="font-semibold pr-2">{item.qty} x {item.name}</span>
+                {item.subtotal !== undefined && item.subtotal > 0 && (
+                  <span className="font-semibold shrink-0">Rp {item.subtotal.toLocaleString("id-ID")}</span>
+                )}
               </div>
+              {item.price !== undefined && item.price > 0 && (
+                <span className="text-[11px] text-gray-600">@ Rp {item.price.toLocaleString("id-ID")}</span>
+              )}
               {item.options && item.options.length > 0 && (
                 <span className="text-[11px] text-gray-700 ml-4 italic">- {item.options.join(", ")}</span>
               )}
@@ -339,7 +541,7 @@ export default function OrdersPage() {
           <div className="p-4 border-b bg-white flex justify-between items-center">
             <div>
               <h3 className="font-bold text-lg text-slate-900 flex items-center gap-2">
-                {t.detailTitle} {order.id}
+                #{order.dailyCode || order.id}
                 <Badge variant="outline" className={`ml-2 bg-white ${order.orderType.includes('Delivery') ? 'border-blue-200 text-blue-700' : 'border-emerald-200 text-emerald-700'}`}>
                   {order.orderType}
                 </Badge>
@@ -435,10 +637,17 @@ export default function OrdersPage() {
                 {order.items.map((item, idx) => (
                   <li key={idx} className="p-4 hover:bg-slate-50/50 transition-colors">
                     <div className="flex justify-between items-start text-sm">
-                      <div className="flex gap-3">
-                        <span className="font-bold text-resurva-dark bg-resurva-green-muted/30 px-2 py-0.5 rounded-md h-fit">{item.qty}x</span>
-                        <div className="space-y-1">
-                          <span className="font-bold text-slate-800">{item.name}</span>
+                      <div className="flex gap-3 min-w-0 flex-1 pr-3">
+                        <span className="font-bold text-resurva-dark bg-resurva-green-muted/30 px-2 py-0.5 rounded-md h-fit shrink-0">{item.qty}x</span>
+                        <div className="space-y-1 min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-slate-800">{item.name}</span>
+                            {item.price !== undefined && item.price > 0 && (
+                              <span className="text-xs text-slate-400 font-medium">
+                                (Rp {item.price.toLocaleString("id-ID")})
+                              </span>
+                            )}
+                          </div>
                           
                           {/* Options */}
                           {item.options && item.options.length > 0 && (
@@ -460,6 +669,11 @@ export default function OrdersPage() {
                           )}
                         </div>
                       </div>
+                      {item.subtotal !== undefined && item.subtotal > 0 && (
+                        <span className="font-extrabold text-slate-900 text-sm shrink-0">
+                          Rp {item.subtotal.toLocaleString("id-ID")}
+                        </span>
+                      )}
                     </div>
                   </li>
                 ))}
@@ -528,13 +742,14 @@ export default function OrdersPage() {
             let count = 0;
             let activeTabKey: "Baru" | "Berlangsung" | "Selesai" = "Baru";
             if (tab === t.tabNew) {
-              count = orders.filter(o => o.status === "Menunggu Konfirmasi").length;
               activeTabKey = "Baru";
+              count = tabData.Baru.total || tabData.Baru.items.length;
             } else if (tab === t.tabOngoing) {
-              count = orders.filter(o => ["Disiapkan", "Siap Diambil"].includes(o.status)).length;
               activeTabKey = "Berlangsung";
+              count = tabData.Berlangsung.total || tabData.Berlangsung.items.length;
             } else {
               activeTabKey = "Selesai";
+              count = 0;
             }
             
             return (
@@ -586,125 +801,145 @@ export default function OrdersPage() {
             return (
               <Card 
                 key={order.id} 
-                className="overflow-hidden bg-white border border-slate-200 shadow-sm hover:shadow-md hover:border-resurva-dark/40 transition-all cursor-pointer rounded-xl flex flex-col h-full"
+                className="overflow-hidden bg-white border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-500/40 transition-all duration-200 cursor-pointer rounded-xl flex flex-col h-[350px] group py-0 gap-0"
                 onClick={() => setSelectedOrderModal(order)}
               >
                 {/* Header Compact */}
-                <div className="p-4 pb-3 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-                  <div className="flex items-center gap-2 overflow-hidden">
-                    <span className="text-xs font-bold text-slate-500 shrink-0">{order.id}</span>
-                    <Badge variant="outline" className={`shrink-0 flex items-center gap-1 bg-white ${order.orderType.includes('Delivery') ? 'border-blue-200 text-blue-700' : 'border-emerald-200 text-emerald-700'} px-1.5 py-0`}>
+                <div className="p-3 px-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                  <div className="flex items-center gap-2 overflow-hidden flex-wrap">
+                    <span className="text-xs font-black text-slate-800 tracking-wide bg-slate-200/60 px-2 py-0.5 rounded-md font-mono shrink-0">
+                      {order.dailyCode || order.id}
+                    </span>
+                    <Badge variant="outline" className={`shrink-0 flex items-center gap-1 bg-white border-slate-200 text-slate-600 px-1.5 py-0 text-[10px]`}>
                       {getOrderIcon(order.orderType)}
+                      <span className="max-w-[70px] truncate">{order.orderType}</span>
                     </Badge>
-                  </div>
-                  
-                  {/* Status Badge atau Print Icon */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Badge className={`text-[10px] px-1.5 py-0 ${getStatusColor(order.status)}`} variant="secondary">
-                      {order.status}
-                    </Badge>
-                    {canPrint && (
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); setSelectedOrderModal(order); setTimeout(handlePrint, 100); }} 
-                        className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-md transition-colors"
-                        title={t.printBtn}
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Body Info */}
-                <div className="p-4 flex-1 flex flex-col gap-3 pointer-events-none">
-                  <div>
-                    <h3 className="font-extrabold text-lg text-slate-900 leading-tight truncate" title={order.customerName}>
-                      {order.customerName}
-                    </h3>
-                    <div className="flex items-center text-[11px] text-slate-500 font-medium mt-1">
-                      <Clock className="w-3 h-3 mr-1" />
+                    <span className="text-[10px] text-slate-400 font-semibold shrink-0">
                       {new Date(order.createdAt).toLocaleString("id-ID", {
-                        day: "2-digit", month: "short", year: "numeric",
+                        day: "2-digit", month: "short",
                         hour: "2-digit", minute: "2-digit",
                       })}
-                    </div>
+                    </span>
                   </div>
+                  
+                  {/* Status Circle Icon */}
+                  {getStatusCircle(order.status)}
+                </div>
 
-                  <div className="flex justify-between items-end">
-                    <div>
-                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Total</p>
-                      <div className="font-extrabold text-resurva-dark text-xl leading-none">
-                        Rp {order.totalAmount.toLocaleString("id-ID")}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Catatan Warning Label */}
+                {/* Body Info: Items List ONLY (Maximized Vertical Height) */}
+                <div className="p-3.5 flex-1 flex flex-col min-h-0">
                   {hasNotes && (
-                    <div className="mt-1 flex items-center gap-1 bg-amber-50 text-amber-700 text-[10px] font-bold px-2 py-1 rounded border border-amber-200 w-fit">
-                      <AlertCircle className="w-3 h-3" /> {t.specificNote}
+                    <div className="mb-2 flex items-center gap-1 bg-amber-50 text-amber-700 text-[9px] font-bold px-2 py-1 rounded-lg border border-amber-200/60 shrink-0">
+                      <AlertCircle className="w-3 h-3 text-amber-600 shrink-0" /> {t.specificNote}
                     </div>
                   )}
-                  
-                  {/* Item Summary (Compact Box) */}
-                  <div className="mt-auto pt-3">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Daftar Item</p>
-                    <div className="bg-slate-50 rounded-lg p-2 border border-slate-100 flex justify-between items-center">
-                      <span className="text-sm font-semibold text-slate-700">Total {totalItemsCount} {t.itemsText}</span>
-                      <span className="text-xs text-blue-600 font-medium flex items-center">{t.seeMore} <ChevronRight className="w-3 h-3 ml-0.5" /></span>
-                    </div>
+                  <div className="flex-1 overflow-y-auto pr-1 space-y-2 bg-slate-50/50 rounded-xl p-2.5 border border-slate-100 min-h-0 scrollbar-thin scrollbar-thumb-slate-200">
+                    {order.items.map((item, idx) => (
+                      <div key={idx} className="flex justify-between items-start text-xs border-b border-slate-100/60 pb-2 last:border-0 last:pb-0">
+                        <div className="flex-1 min-w-0 pr-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold text-slate-800 break-words leading-snug">{item.name}</span>
+                            {item.price !== undefined && item.price > 0 && (
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                (Rp {item.price.toLocaleString("id-ID")})
+                              </span>
+                            )}
+                          </div>
+                          {item.options && item.options.length > 0 && (
+                            <span className="block text-[10px] text-slate-400 font-medium truncate mt-0.5">
+                              {item.options.join(", ")}
+                            </span>
+                          )}
+                          {item.notes && (
+                            <span className="block text-[10px] text-amber-600 font-medium italic mt-0.5">
+                              Catatan: {item.notes}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="font-extrabold text-slate-600 bg-slate-200/80 px-1.5 py-0.5 rounded text-[10px] inline-block">
+                            x{item.qty}
+                          </span>
+                          {item.subtotal !== undefined && item.subtotal > 0 && (
+                            <span className="block text-[10px] font-bold text-slate-700 mt-0.5">
+                              Rp {item.subtotal.toLocaleString("id-ID")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
                 
-                {/* Footer Actions (Full width) */}
-                {activeTab !== "Selesai" && (
-                  <div className="p-3 border-t border-slate-100 bg-white">
+                {/* Footer Section */}
+                <div className="p-3 px-4 border-t border-slate-100 bg-white flex items-center justify-between shrink-0">
+                  {/* Left Footer: Total Amount & Items Count */}
+                  <div>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Total ({totalItemsCount} Item)</p>
+                    <div className="font-extrabold text-slate-900 text-base leading-none mt-0.5">
+                      Rp {order.totalAmount.toLocaleString("id-ID")}
+                    </div>
+                  </div>
+
+                  {/* Right Footer: Action Buttons */}
+                  <div className="flex items-center gap-2">
                     {order.status === "Menunggu Konfirmasi" && (
-                      <div className="flex gap-2 w-full">
+                      <>
                         <Button 
                           variant="outline" 
-                          size="sm"
-                          className="w-1/2 text-red-600 border-red-200 hover:bg-red-50 text-xs px-0 rounded-xl" 
+                          size="icon"
+                          className="w-9 h-9 rounded-xl text-red-600 border-red-200 bg-red-50/60 hover:bg-red-100 hover:text-red-700 shrink-0 font-bold transition-all" 
                           onClick={(e) => handleRejectClick(e, order.id)}
+                          title={t.rejectBtn}
                         >
-                          {t.rejectBtn.split(" ")[0]}
+                          <X className="w-4 h-4 stroke-[2.5]" />
                         </Button>
                         <Button 
-                          size="sm"
-                          className="w-1/2 bg-blue-600 hover:bg-blue-700 text-white text-xs px-0 rounded-xl" 
+                          size="icon"
+                          className="w-9 h-9 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-sm shrink-0 font-bold transition-all" 
                           onClick={(e) => handleConfirm(e, order.id)}
+                          title={t.confirmBtn}
                         >
-                          {t.confirmBtn.split(" ")[0]}
+                          <Check className="w-4 h-4 stroke-[2.5]" />
                         </Button>
-                      </div>
+                      </>
                     )}
-                    
+
                     {order.status === "Disiapkan" && (
                       <Button 
-                        size="sm"
-                        className="w-full bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-xl" 
+                        size="icon"
+                        className="w-9 h-9 rounded-xl bg-purple-600 hover:bg-purple-700 text-white shadow-sm shrink-0 font-bold transition-all" 
                         onClick={(e) => handleMarkReady(e, order.id)}
+                        title={t.readyBtn}
                       >
-                        <CheckCircle className="w-3.5 h-3.5 mr-1.5" /> {t.readyBtn}
+                        <Check className="w-4 h-4 stroke-[2.5]" />
                       </Button>
                     )}
-                    
+
                     {order.status === "Siap Diambil" && (
                       <Button 
-                        size="sm"
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl" 
+                        size="icon"
+                        className="w-9 h-9 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm shrink-0 font-bold transition-all" 
                         onClick={(e) => handleHandover(e, order.id)}
+                        title={t.handoverBtn}
                       >
-                        {t.handoverBtn}
+                        <Check className="w-4 h-4 stroke-[2.5]" />
                       </Button>
                     )}
                   </div>
-                )}
+                </div>
               </Card>
             );
           })
         )}
       </div>
+
+      {/* Loading Indicator for Infinite Scroll */}
+      {tabData[activeTab].loading && (
+        <div className="flex justify-center items-center py-8 w-full">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-600"></div>
+        </div>
+      )}
 
       {/* Reject Modal */}
       {rejectModalOpen && (

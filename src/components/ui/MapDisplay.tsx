@@ -19,6 +19,7 @@ interface MapDisplayProps {
   name: string;
   draggable?: boolean;
   onLocationChange?: (lat: number, lng: number) => void;
+  instanceId?: string;
 }
 
 function MapUpdater({ lat, lng }: { lat: number; lng: number }) {
@@ -39,7 +40,13 @@ function MapUpdater({ lat, lng }: { lat: number; lng: number }) {
   return null;
 }
 
-export default function MapDisplay({ latitude, longitude, name, draggable = false, onLocationChange }: MapDisplayProps) {
+export default function MapDisplay({ latitude, longitude, name, draggable = false, onLocationChange, instanceId }: MapDisplayProps) {
+  const [isMounted, setIsMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const markerRef = useRef<any>(null);
   const eventHandlers = useMemo(
     () => ({
@@ -54,9 +61,15 @@ export default function MapDisplay({ latitude, longitude, name, draggable = fals
     [onLocationChange]
   );
 
+  if (!isMounted) {
+    return (
+      <div className="h-[300px] w-full rounded-xl bg-slate-100 animate-pulse border border-slate-200" />
+    );
+  }
+
   return (
     <div className="h-[300px] w-full rounded-xl overflow-hidden shadow-inner border border-slate-200 relative z-0">
-      <MapContainer center={[latitude, longitude]} zoom={15} scrollWheelZoom={true} className="h-full w-full z-0">
+      <MapContainer key={instanceId || "map"} center={[latitude, longitude]} zoom={15} scrollWheelZoom={true} className="h-full w-full z-0">
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

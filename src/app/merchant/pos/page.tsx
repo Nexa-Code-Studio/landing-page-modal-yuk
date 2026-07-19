@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useMerchantContext, Product, VariantGroup, VariantOption } from "@/lib/contexts/MerchantContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, ShoppingCart, Minus, Plus, Trash2, Receipt, Banknote, QrCode } from "lucide-react";
+import { Search, ShoppingCart, Minus, Plus, Trash2, Receipt, Banknote, QrCode, Tag, AlertTriangle } from "lucide-react";
 
 interface CartItem {
   id: string; // Unique ID for cart entry (differentiates same product with different variants)
@@ -91,12 +91,51 @@ const TRANSLATIONS = {
 };
 
 export default function POSPage() {
-  const { products, addOrder } = useMerchantContext();
+  const { products, batches, addOrder } = useMerchantContext();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("Semua");
   const [activeTypeFilter, setActiveTypeFilter] = useState<"Semua" | "Surplus" | "Reguler">("Semua");
   const [orderType, setOrderType] = useState<OrderType>("Dine-In");
   const [lang, setLang] = useState<"en" | "id">("en");
+
+  // Warning Modal State
+  const [warningModal, setWarningModal] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+  }>({ open: false, title: "", message: "" });
+
+  const showWarning = (message: string, title?: string) => {
+    setWarningModal({
+      open: true,
+      title: title || (lang === "en" ? "Stock Warning" : "Peringatan Stok"),
+      message
+    });
+  };
+
+  const getActiveBatch = (product: Product) => {
+    const now = Date.now();
+    const prodBatches = product.batches || batches.filter(b => b.productId === product.id);
+    const active = prodBatches.filter(b => b.remainingQty > 0 && (!b.expiryDate || new Date(b.expiryDate).getTime() > now));
+    active.sort((a, b) => {
+      if (!a.expiryDate) return 1;
+      if (!b.expiryDate) return -1;
+      return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
+    });
+    return active[0];
+  };
+
+  const getAvailableStock = (product: Product) => {
+    const now = Date.now();
+    const prodBatches = product.batches || batches.filter(b => b.productId === product.id);
+    if (prodBatches.length > 0) {
+      // If product has inventory batches, strictly sum remainingQty of active non-expired batches
+      const active = prodBatches.filter(b => b.remainingQty > 0 && (!b.expiryDate || new Date(b.expiryDate).getTime() > now));
+      return active.reduce((sum, b) => sum + b.remainingQty, 0);
+    }
+    // Fallback to product.quantity ONLY if no inventory batches exist at all
+    return product.quantity || 0;
+  };
 
   // Load language preference from localStorage
   useEffect(() => {
@@ -199,6 +238,19 @@ export default function POSPage() {
   // -- Action Handlers --
 
   const handleProductClick = (product: Product) => {
+    const availStock = getAvailableStock(product);
+    const currentInCart = cartItems.filter(item => item.product.id === product.id).reduce((sum, item) => sum + item.quantity, 0);
+
+    if (currentInCart >= availStock || availStock <= 0) {
+      showWarning(
+        lang === "en"
+          ? `Stock for "${product.name}" is unavailable or fully added to cart.`
+          : `Stok "${product.name}" tidak mencukupi atau sudah masuk semua ke keranjang! (Stok tersedia: ${availStock})`,
+        lang === "en" ? "Out of Stock" : "Stok Tidak Mencukupi"
+      );
+      return;
+    }
+
     if (product.variantGroups && product.variantGroups.length > 0) {
       setSelectedProduct(product);
       setTempVariantSelections({});
@@ -236,7 +288,10 @@ export default function POSPage() {
     if (selectedProduct.variantGroups) {
       for (const group of selectedProduct.variantGroups) {
         if (group.isRequired && (!tempVariantSelections[group.id] || tempVariantSelections[group.id].length === 0)) {
-          alert(lang === "en" ? `Choice for "${group.name}" is required.` : `Pilihan untuk "${group.name}" wajib diisi.`);
+          showWarning(
+            lang === "en" ? `Choice for "${group.name}" is required.` : `Pilihan untuk "${group.name}" wajib diisi.`,
+            lang === "en" ? "Variant Required" : "Pilihan Wajib"
+          );
           return;
         }
       }
@@ -285,13 +340,32 @@ export default function POSPage() {
   };
 
   const updateCartQuantity = (cartItemId: string, delta: number) => {
-    setCartItems(prev => prev.map(item => {
-      if (item.id === cartItemId) {
-        const newQty = Math.max(1, item.quantity + delta);
-        return { ...item, quantity: newQty, totalPrice: newQty * item.unitPrice };
+    setCartItems(prev => {
+      const targetItem = prev.find(item => item.id === cartItemId);
+      if (!targetItem) return prev;
+
+      if (delta > 0) {
+        const availStock = getAvailableStock(targetItem.product);
+        const currentInCart = prev.filter(item => item.product.id === targetItem.product.id).reduce((sum, item) => sum + item.quantity, 0);
+        if (currentInCart + delta > availStock) {
+          showWarning(
+            lang === "en"
+              ? `Cannot add more "${targetItem.product.name}". Max available stock: ${availStock}`
+              : `Tidak bisa menambah stok "${targetItem.product.name}". Stok maksimum tersedia: ${availStock}`,
+            lang === "en" ? "Stock Limit Reached" : "Batas Stok Tercapai"
+          );
+          return prev;
+        }
       }
-      return item;
-    }));
+
+      return prev.map(item => {
+        if (item.id === cartItemId) {
+          const newQty = Math.max(1, item.quantity + delta);
+          return { ...item, quantity: newQty, totalPrice: newQty * item.unitPrice };
+        }
+        return item;
+      });
+    });
   };
 
   const removeFromCart = (cartItemId: string) => {
@@ -300,12 +374,12 @@ export default function POSPage() {
 
   const handlePay = () => {
     if (paymentMethod === "Tunai" && cashReceived < grandTotal) {
-      alert(t.underpaid);
+      showWarning(t.underpaid, lang === "en" ? "Insufficient Cash" : "Uang Kurang");
       return;
     }
     
     // Add to orders context
-    addOrder({
+    (addOrder as any)({
       customerName: `Walk-in Pelanggan`,
       items: cartItems.map(item => ({
         name: item.product.name,
@@ -315,6 +389,12 @@ export default function POSPage() {
       status: "Selesai",
       orderType: orderType === "Dine-In" ? "POS Dine-In" : "POS Take-Away",
       paymentMethod: paymentMethod === "QRIS" ? "QRIS Xendit" : "Tunai",
+      paymentDetails: {
+        payment_method: paymentMethod === "QRIS" ? "qris" : "cash",
+        cash_received: paymentMethod === "Tunai" ? cashReceived : grandTotal,
+        change: paymentMethod === "Tunai" ? change : 0,
+        provider: paymentMethod === "QRIS" ? "QRIS Xendit" : "Tunai"
+      },
       createdAt: new Date().toISOString()
     });
 
@@ -540,6 +620,29 @@ export default function POSPage() {
     );
   };
 
+  const renderWarningModal = () => {
+    if (!warningModal.open) return null;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in print:hidden">
+        <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden flex flex-col p-6 text-center border border-amber-100">
+          <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-600 shadow-inner">
+            <AlertTriangle className="w-8 h-8" />
+          </div>
+          <h3 className="text-xl font-extrabold text-slate-900 mb-2">{warningModal.title}</h3>
+          <p className="text-sm text-slate-600 mb-6 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100">
+            {warningModal.message}
+          </p>
+          <Button
+            onClick={() => setWarningModal({ open: false, title: "", message: "" })}
+            className="w-full bg-resurva-dark hover:bg-resurva-dark-light text-white font-bold h-12 text-base rounded-xl shadow-md cursor-pointer"
+          >
+            {lang === "en" ? "Understood" : "Saya Mengerti"}
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="h-full flex flex-col lg:flex-row overflow-hidden relative">
       {/* Left: Product Grid */}
@@ -628,7 +731,17 @@ export default function POSPage() {
                   </div>
                   <div className="p-3 flex flex-col flex-1 justify-between gap-2">
                     <div>
-                      <h3 className="font-semibold text-slate-800 text-sm leading-tight line-clamp-2">{product.name}</h3>
+                      <div className="flex justify-between items-start gap-1">
+                        <h3 className="font-semibold text-slate-800 text-sm leading-tight line-clamp-2">{product.name}</h3>
+                        {(() => {
+                          const availStock = getAvailableStock(product);
+                          return (
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0 ${availStock > 0 ? "bg-slate-100 text-slate-600 border border-slate-200" : "bg-red-100 text-red-600 border border-red-200"}`}>
+                              {availStock > 0 ? `Stok ${availStock}` : "Habis"}
+                            </span>
+                          );
+                        })()}
+                      </div>
                       {hasVariants && <span className="text-[10px] text-slate-400 mt-1 block">{t.availableVariant}</span>}
                     </div>
                     <div>
@@ -711,6 +824,19 @@ export default function POSPage() {
                     {Object.values(item.selectedVariants).flat().map(v => (
                        <p key={v.id} className="text-[10px] text-slate-500">+ {v.name}</p>
                     ))}
+                    {(() => {
+                      const activeBatch = getActiveBatch(item.product);
+                      if (!activeBatch) return null;
+                      return (
+                        <div className="inline-flex items-center gap-1 text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/80 px-1.5 py-0.5 rounded-md mt-1">
+                          <Tag className="w-2.5 h-2.5 text-amber-600" />
+                          <span>{activeBatch.batchTag || "FIFO Batch"}</span>
+                          {activeBatch.expiryDate && (
+                            <span className="text-amber-600/80">• Exp: {new Date(activeBatch.expiryDate).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}</span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-resurva-dark text-sm">Rp {item.totalPrice.toLocaleString("id-ID")}</p>
@@ -785,6 +911,7 @@ export default function POSPage() {
       {renderVariantModal()}
       {renderPaymentModal()}
       {renderReceiptModal()}
+      {renderWarningModal()}
     </div>
   );
 }

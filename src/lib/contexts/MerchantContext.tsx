@@ -81,7 +81,7 @@ export type OrderType = "Online Delivery" | "Online Pickup" | "POS Dine-In" | "P
 export interface Order {
   id: string;
   customerName: string;
-  items: { name: string; qty: number; options?: string[]; notes?: string }[];
+  items: { name: string; qty: number; price?: number; subtotal?: number; options?: string[]; notes?: string }[];
   totalAmount: number;
   notes?: string;
   status: OrderStatus;
@@ -89,11 +89,12 @@ export interface Order {
   paymentMethod?: "Tunai" | "QRIS Xendit" | "Online Payment";
   driverInfo?: { name: string; licensePlate: string };
   createdAt: string;
+  dailyCode?: string;
 }
 
 // ─── Backend response shapes (matching FastAPI schemas) ───────────────────────
 
-interface BackendStore {
+export interface BackendStore {
   id: string;
   name: string;
   address: string;
@@ -168,7 +169,7 @@ interface BackendStockTransaction {
   created_at: string;
 }
 
-interface PaginatedResponse<T> {
+export interface PaginatedResponse<T> {
   items: T[];
   pagination: { page: number; page_size: number; total: number; total_pages: number };
 }
@@ -265,6 +266,9 @@ function mapStockTransaction(t: BackendStockTransaction, products: BackendProduc
 
 interface MerchantContextProps {
   storeId: string | null;
+  store: BackendStore | null;
+  loadingStore: boolean;
+  refetchStore: () => Promise<void>;
   products: Product[];
   loadingProducts: boolean;
   refetchProducts: () => Promise<void>;
@@ -284,6 +288,10 @@ interface MerchantContextProps {
   refetchLogs: (productId?: string) => Promise<void>;
 
   orders: Order[];
+  activeOrdersCount: number;
+  newOrdersCount: number;
+  newOrdersPreview: Order[];
+  refetchActiveOrdersCount: () => Promise<void>;
   addOrder: (order: Omit<Order, "id">) => void;
   updateOrderStatus: (id: string, status: OrderStatus) => void;
 
@@ -295,10 +303,112 @@ interface MerchantContextProps {
 
 const MerchantContext = createContext<MerchantContextProps | undefined>(undefined);
 
+// ─── Backend Order Interfaces & Mappers ───────────────────────────────────────
+
+export interface BackendOrderItem {
+  id: string;
+  product_id: string;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+  product_name?: string;
+  options?: string[];
+}
+
+export interface BackendOrder {
+  id: string;
+  user_id: string;
+  store_id: string;
+  total_price: number;
+  total_discount: number;
+  final_price: number;
+  status: "pending" | "paid" | "prepared" | "cancelled" | "completed";
+  created_at: string;
+  order_items: BackendOrderItem[];
+  customer_name?: string;
+  payment_method?: string;
+  order_type?: string;
+  notes?: string;
+  daily_code?: string;
+}
+
+export function mapBackendOrderStatus(status: string): OrderStatus {
+  switch (status) {
+    case "pending":
+      return "Menunggu Konfirmasi";
+    case "paid":
+      return "Disiapkan";
+    case "prepared":
+      return "Siap Diambil";
+    case "completed":
+      return "Selesai";
+    case "cancelled":
+      return "Dibatalkan";
+    default:
+      return "Menunggu Konfirmasi";
+  }
+}
+
+function unmapFrontendOrderStatus(status: OrderStatus): string {
+  switch (status) {
+    case "Menunggu Konfirmasi":
+      return "pending";
+    case "Disiapkan":
+      return "paid";
+    case "Siap Diambil":
+      return "prepared";
+    case "Selesai":
+      return "completed";
+    case "Dibatalkan":
+      return "cancelled";
+    default:
+      return "pending";
+  }
+}
+
+export function mapBackendOrder(bo: BackendOrder): Order {
+  let payMethod: "Tunai" | "QRIS Xendit" | "Online Payment" = "Tunai";
+  if (bo.payment_method) {
+    const pmUpper = bo.payment_method.toUpperCase();
+    if (pmUpper.includes("CASH") || pmUpper === "TUNAI") {
+      payMethod = "Tunai";
+    } else if (pmUpper.includes("XENDIT") || pmUpper.includes("QRIS")) {
+      payMethod = "QRIS Xendit";
+    } else {
+      payMethod = "Online Payment";
+    }
+  }
+
+  const isOnlineDelivery = bo.order_type === "Online Delivery" || (bo.order_type && bo.order_type.includes("Delivery"));
+  const driverInfo = isOnlineDelivery ? { name: "Budi Driver (Simulasi)", licensePlate: "N 1234 AB" } : undefined;
+
+  return {
+    id: bo.id,
+    customerName: bo.customer_name || "Pelanggan",
+    items: bo.order_items.map((item) => ({
+      name: item.product_name || "Produk",
+      qty: item.quantity,
+      price: item.unit_price,
+      subtotal: item.subtotal,
+      options: item.options || [],
+    })),
+    totalAmount: bo.final_price,
+    notes: bo.notes || undefined,
+    status: mapBackendOrderStatus(bo.status),
+    orderType: (bo.order_type as OrderType) || "Online Pickup",
+    paymentMethod: payMethod,
+    driverInfo: driverInfo,
+    createdAt: bo.created_at,
+    dailyCode: bo.daily_code,
+  };
+}
+
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function MerchantProvider({ children }: { children: ReactNode }) {
   const [storeId, setStoreId] = useState<string | null>(null);
+  const [store, setStore] = useState<BackendStore | null>(null);
+  const [loadingStore, setLoadingStore] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [batches, setBatches] = useState<ProductBatch[]>([]);
@@ -354,19 +464,23 @@ export function MerchantProvider({ children }: { children: ReactNode }) {
     }
   }, [storeId]);
 
-  // Fetch store custom categories
-  const fetchStoreCategories = useCallback(async () => {
+  // Fetch store profile details
+  const fetchStore = useCallback(async () => {
     if (!storeId) return;
+    setLoadingStore(true);
     try {
-      const store = await apiClient.get<BackendStore>(`/stores/${storeId}`);
-      if (store.categories_data) {
-        const customCats = JSON.parse(store.categories_data);
+      const storeData = await apiClient.get<BackendStore>(`/stores/${storeId}`);
+      setStore(storeData);
+      if (storeData.categories_data) {
+        const customCats = JSON.parse(storeData.categories_data);
         if (Array.isArray(customCats) && customCats.length > 0) {
           setCategories(customCats);
         }
       }
     } catch (err) {
-      console.error("[MerchantContext] fetchStoreCategories failed:", err);
+      console.error("[MerchantContext] fetchStore failed:", err);
+    } finally {
+      setLoadingStore(false);
     }
   }, [storeId]);
 
@@ -387,11 +501,51 @@ export function MerchantProvider({ children }: { children: ReactNode }) {
     }
   }, [storeId]);
 
+  const [activeOrdersCount, setActiveOrdersCount] = useState<number>(0);
+  const [newOrdersCount, setNewOrdersCount] = useState<number>(0);
+  const [newOrdersPreview, setNewOrdersPreview] = useState<Order[]>([]);
+
+  const fetchOrders = useCallback(async () => {
+    if (!storeId) return;
+    try {
+      const response = await apiClient.get<PaginatedResponse<BackendOrder>>(`/orders/?store_id=${storeId}&page_size=100`);
+      setOrders(response.items.map(bo => mapBackendOrder(bo)));
+    } catch (err) {
+      console.error("[MerchantContext] fetchOrders failed:", err);
+    }
+  }, [storeId]);
+
+  const fetchActiveOrdersCount = useCallback(async () => {
+    if (!storeId) return;
+    try {
+      // Total aktif (pending + paid + prepared) untuk sidebar badge
+      const activeRes = await apiClient.get<PaginatedResponse<BackendOrder>>(
+        `/orders/?store_id=${storeId}&status=pending,paid,prepared&page_size=1`
+      );
+      if (activeRes && activeRes.pagination) {
+        setActiveOrdersCount(activeRes.pagination.total);
+      }
+
+      // Total + preview 5 pesanan Baru (pending only) untuk dashboard
+      const newRes = await apiClient.get<PaginatedResponse<BackendOrder>>(
+        `/orders/?store_id=${storeId}&status=pending&page_size=5`
+      );
+      if (newRes && newRes.pagination) {
+        setNewOrdersCount(newRes.pagination.total);
+        setNewOrdersPreview(newRes.items.map((bo: BackendOrder) => mapBackendOrder(bo)));
+      }
+    } catch (err) {
+      console.error("[MerchantContext] fetchActiveOrdersCount failed:", err);
+    }
+  }, [storeId]);
+
   useEffect(() => {
     fetchProducts();
     fetchBatches();
-    fetchStoreCategories();
-  }, [fetchProducts, fetchBatches, fetchStoreCategories]);
+    fetchStore();
+    fetchOrders();
+    fetchActiveOrdersCount();
+  }, [fetchProducts, fetchBatches, fetchStore, fetchOrders, fetchActiveOrdersCount]);
 
   // ─── Product CRUD ────────────────────────────────────────────────────────────
 
@@ -519,15 +673,64 @@ export function MerchantProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // ─── Orders (still local – no backend order management in scope) ─────────────
+  // ─── Orders ──────────────────────────────────────────────────────────────────
 
-  const addOrder = (order: Omit<Order, "id">) => {
-    const newOrder = { ...order, id: `ORD-${Date.now().toString().slice(-4)}` };
-    setOrders((prev) => [newOrder, ...prev]);
+  const addOrder = async (order: Omit<Order, "id"> & { paymentDetails?: any }) => {
+    if (!storeId) return;
+
+    const orderItemsPayload = order.items.map((item) => {
+      const foundProd = products.find(p => p.name === item.name);
+      return {
+        product_id: foundProd?.id || "",
+        quantity: item.qty
+      };
+    }).filter(item => item.product_id !== "");
+
+    try {
+      const isPOS = order.orderType.includes("POS");
+      const pmBackend = order.paymentMethod?.toLowerCase().includes("qris") ? "qris" : "cash";
+
+      const payload = {
+        store_id: storeId,
+        channel: isPOS ? "kasir" : "marketplace",
+        items: orderItemsPayload,
+        notes: order.notes,
+        payment_method: pmBackend,
+        payment_details: order.paymentDetails || { payment_method: order.paymentMethod || "Tunai" },
+        status: isPOS ? "completed" : "pending",
+      };
+
+      const created = await apiClient.post<BackendOrder>("/orders/", payload);
+      setOrders((prev) => [mapBackendOrder(created), ...prev]);
+      
+      // Update inventory list and batches to sync correct stocks
+      await fetchProducts();
+      await fetchBatches();
+    } catch (err) {
+      console.error("[MerchantContext] addOrder failed:", err);
+      // Fallback local update if API fails
+      const newOrder = { ...order, id: `ORD-${Date.now().toString().slice(-4)}` };
+      setOrders((prev) => [newOrder, ...prev]);
+    }
   };
 
-  const updateOrderStatus = (id: string, status: OrderStatus) => {
-    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
+  const updateOrderStatus = async (id: string, status: OrderStatus) => {
+    const backendStatus = unmapFrontendOrderStatus(status);
+    try {
+      const updated = await apiClient.put<BackendOrder>(`/orders/${id}/status`, {
+        status: backendStatus
+      });
+      setOrders((prev) =>
+        prev.map((o) => (o.id === id ? mapBackendOrder(updated) : o))
+      );
+      fetchActiveOrdersCount();
+      await fetchProducts();
+      await fetchBatches();
+    } catch (err: any) {
+      console.error(`[MerchantContext] updateOrderStatus failed for ${id}:`, err);
+      const detailMsg = err?.response?.data?.detail || err?.message || "Gagal memperbarui status pesanan di server.";
+      alert(`Gagal memperbarui status pesanan: ${detailMsg}`);
+    }
   };
 
   // ─── Categories ──────────────────────────────────────────────────────────────
@@ -595,6 +798,9 @@ export function MerchantProvider({ children }: { children: ReactNode }) {
     <MerchantContext.Provider
       value={{
         storeId,
+        store,
+        loadingStore,
+        refetchStore: fetchStore,
         products,
         loadingProducts,
         refetchProducts: fetchProducts,
@@ -611,6 +817,10 @@ export function MerchantProvider({ children }: { children: ReactNode }) {
         loadingLogs,
         refetchLogs: fetchLogs,
         orders,
+        activeOrdersCount,
+        newOrdersCount,
+        newOrdersPreview,
+        refetchActiveOrdersCount: fetchActiveOrdersCount,
         addOrder,
         updateOrderStatus,
         categories,

@@ -234,6 +234,10 @@ export default function LandingPage() {
   const [isSuccess, setIsSuccess] = useState(false);
 
   useEffect(() => {
+    document.title = "Resurva - Food Waste Marketplace";
+  }, []);
+
+  useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsLoginOpen(false);

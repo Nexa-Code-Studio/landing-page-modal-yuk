@@ -8,16 +8,20 @@ import {
   PointElement,
   LineElement,
   BarElement,
+  ArcElement,
   Title as ChartTitle,
   Tooltip,
   Legend,
   Filler,
 } from "chart.js";
-import { Line, Bar } from "react-chartjs-2";
+import { Line, Bar, Doughnut } from "react-chartjs-2";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useMerchantContext } from "@/lib/contexts/MerchantContext";
+import { apiClient } from "@/lib/api";
 import { 
   Sparkles, MessageSquare, Send, X, Bot, RefreshCw, ChevronLeft, ChevronRight,
-  Wallet, TrendingUp, PieChart, Activity, ArrowUpRight, ArrowDownRight, DollarSign, List, BadgeDollarSign, Plus, Search
+  Wallet, TrendingUp, PieChart, Activity, ArrowUpRight, ArrowDownRight, DollarSign, List, BadgeDollarSign, Plus, Search,
+  AlertTriangle, Package, ShieldCheck, ArrowRight, Layers, ShoppingCart, Info, Percent, Tag, CheckCircle2, BarChart3
 } from "lucide-react";
 
 ChartJS.register(
@@ -26,6 +30,7 @@ ChartJS.register(
   PointElement,
   LineElement,
   BarElement,
+  ArcElement,
   ChartTitle,
   Tooltip,
   Legend,
@@ -99,13 +104,9 @@ const TRANSLATIONS = {
 };
 
 export default function StoreAnalyticsPage() {
+  const { storeId } = useMerchantContext();
   const [lang, setLang] = useState<"en" | "id">("en");
   const [activeTab, setActiveTab] = useState<"finance" | "sales" | "ai">("finance");
-  
-  // Chat state
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [inputVal, setInputVal] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   
   // Charts state
   const [timeFrame, setTimeFrame] = useState<"weekly" | "monthly">("weekly");
@@ -113,15 +114,123 @@ export default function StoreAnalyticsPage() {
 
   // Transactions State
   const [txSearch, setTxSearch] = useState("");
-  const [txFilter, setTxFilter] = useState<"all" | "in" | "out">("all");
+  const [txFilter, setTxFilter] = useState<"in" | "out">("in");
+
+  // Backend Live State
+  const [financialData, setFinancialData] = useState<{
+    net_profit: number;
+    total_revenue: number;
+    total_expense: number;
+    surplus_recovery: number;
+    cashflow_weekly: Array<{ day: string; cash_in: number; cash_out: number }>;
+    category_breakdown: Array<{ category: string; count: number; total: number; avg: number; percentage: number }>;
+  } | null>(null);
+
+  const [salesDataBackend, setSalesDataBackend] = useState<{
+    sku_sales: Array<{ sku: string; product_name: string; qty_sold: number }>;
+    top_products_qty: Array<{ name: string; qty_sold: number }>;
+    category_sales: Array<{ category: string; percentage: number; total_sales: number }>;
+    slow_moving_items: Array<{ product_name: string; days_in_stock: number; current_stock: number }>;
+  } | null>(null);
+
+  const [recommendationsData, setRecommendationsData] = useState<Array<{
+    id: string;
+    name: string;
+    category: string;
+    current_stock: number;
+    avg_daily: number;
+    safety_stock: number;
+    rop: number;
+    target_stock: number;
+    unit: string;
+    days_remaining: number;
+    recommended_restock: number;
+    status: string;
+  }>>([]);
+
+  // Loading states
+  const [loadingFinance, setLoadingFinance] = useState(false);
+  const [loadingSales, setLoadingSales] = useState(false);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+
+  // Fetch live financial analytics
+  useEffect(() => {
+    if (!storeId) return;
+    const fetchFinance = async () => {
+      setLoadingFinance(true);
+      try {
+        const res = await apiClient.get<any>(
+          `/analytics/finance?store_id=${storeId}&timeframe=${timeFrame}&tx_type=${txFilter}`
+        );
+        if (res) {
+          setFinancialData(res);
+        }
+      } catch (err) {
+        console.error("Failed to fetch finance analytics:", err);
+      } finally {
+        setLoadingFinance(false);
+      }
+    };
+    fetchFinance();
+  }, [storeId, timeFrame, txFilter]);
+
+  // Fetch live sales analytics
+  useEffect(() => {
+    if (!storeId) return;
+    const fetchSales = async () => {
+      setLoadingSales(true);
+      try {
+        const res = await apiClient.get<any>(
+          `/analytics/sales?store_id=${storeId}&timeframe=${timeFrame}&date_offset=${dateOffset}`
+        );
+        if (res) {
+          setSalesDataBackend(res);
+        }
+      } catch (err) {
+        console.error("Failed to fetch sales analytics:", err);
+      } finally {
+        setLoadingSales(false);
+      }
+    };
+    fetchSales();
+  }, [storeId, timeFrame, dateOffset]);
+
+  // Fetch live inventory recommendations
+  useEffect(() => {
+    if (!storeId) return;
+    const fetchRecommendations = async () => {
+      setLoadingRecommendations(true);
+      try {
+        const res = await apiClient.get<any>(
+          `/analytics/inventory-recommendations?store_id=${storeId}`
+        );
+        if (res && res.items) {
+          setRecommendationsData(res.items);
+        }
+      } catch (err) {
+        console.error("Failed to fetch inventory recommendations:", err);
+      } finally {
+        setLoadingRecommendations(false);
+      }
+    };
+    fetchRecommendations();
+  }, [storeId]);
+
+  // Chat state
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [inputVal, setInputVal] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [transactions, setTransactions] = useState([
-    { id: 1, type: "in", category: "Penjualan POS", desc: "Penjualan POS #1024", amount: 150000, date: "2026-06-26 14:20" },
-    { id: 2, type: "out", category: "Bahan Baku", desc: "Beli Bahan Baku Tepung", amount: 85000, date: "2026-06-26 10:15" },
-    { id: 3, type: "in", category: "Penjualan Lainnya", desc: "Penjualan Surplus #1023", amount: 45000, date: "2026-06-25 19:30" },
-    { id: 4, type: "in", category: "Penjualan POS", desc: "Penjualan POS #1022", amount: 210000, date: "2026-06-25 18:00" },
-    { id: 5, type: "out", category: "Tagihan", desc: "Listrik & Air", amount: 300000, date: "2026-06-25 09:00" },
-    { id: 6, type: "in", category: "Modal/Sponsor", desc: "Dana Suntikan Investor", amount: 5000000, date: "2026-06-24 08:00" },
-    { id: 7, type: "out", category: "Lainnya", desc: "Biaya Kebersihan", amount: 50000, date: "2026-06-24 07:30" },
+    { id: 1, type: "in", category: "Penjualan POS", desc: "Penjualan POS #1024", amount: 1500000, date: "2026-06-26 14:20" },
+    { id: 2, type: "out", category: "Bahan Baku", desc: "Beli Bahan Baku Tepung 50kg", amount: 450000, date: "2026-06-26 10:15" },
+    { id: 3, type: "in", category: "Penjualan Surplus", desc: "Penjualan Surplus #1023", amount: 320000, date: "2026-06-25 19:30" },
+    { id: 4, type: "in", category: "Penjualan POS", desc: "Penjualan POS #1022", amount: 2100000, date: "2026-06-25 18:00" },
+    { id: 5, type: "out", category: "Tagihan Operasional", desc: "Tagihan Listrik & Air Juni", amount: 350000, date: "2026-06-25 09:00" },
+    { id: 6, type: "in", category: "Modal / Sponsor", desc: "Dana Suntikan Investor", amount: 5000000, date: "2026-06-24 08:00" },
+    { id: 7, type: "out", category: "Lainnya", desc: "Biaya Kebersihan & Pembuangan", amount: 50000, date: "2026-06-24 07:30" },
+    { id: 8, type: "in", category: "Penjualan POS", desc: "Penjualan POS #1025", amount: 780000, date: "2026-06-26 16:40" },
+    { id: 9, type: "out", category: "Bahan Baku", desc: "Beli Telur Ayam & Daging", amount: 380000, date: "2026-06-25 11:00" },
+    { id: 10, type: "out", category: "Gaji Karyawan", desc: "Gaji Kasir & Helper Shift 1", amount: 500000, date: "2026-06-24 17:00" },
   ]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
@@ -240,19 +349,19 @@ export default function StoreAnalyticsPage() {
     ],
   };
 
-  // Mock Data for Cashflow (Finance)
+  // Cashflow Data (Finance)
   const cashflowData = {
-    labels: lang === "en" ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] : ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"],
+    labels: financialData?.cashflow_weekly ? financialData.cashflow_weekly.map(c => c.day) : [],
     datasets: [
       {
         label: lang === "en" ? "Cash In" : "Kas Masuk",
-        data: [500000, 450000, 600000, 550000, 800000, 950000, 850000],
+        data: financialData?.cashflow_weekly ? financialData.cashflow_weekly.map(c => c.cash_in) : [],
         backgroundColor: "#10b981", // emerald-500
         borderRadius: 4,
       },
       {
         label: lang === "en" ? "Cash Out" : "Kas Keluar",
-        data: [150000, 200000, 120000, 300000, 250000, 180000, 100000],
+        data: financialData?.cashflow_weekly ? financialData.cashflow_weekly.map(c => c.cash_out) : [],
         backgroundColor: "#f43f5e", // rose-500
         borderRadius: 4,
       }
@@ -291,19 +400,7 @@ export default function StoreAnalyticsPage() {
     setTxForm({ ...txForm, desc: "", amount: "" });
   };
 
-  // Pagination Logic
-  const filteredTransactions = transactions.filter(trx => {
-    const matchesSearch = trx.desc.toLowerCase().includes(txSearch.toLowerCase()) || trx.category.toLowerCase().includes(txSearch.toLowerCase());
-    const matchesFilter = txFilter === "all" || trx.type === txFilter;
-    return matchesSearch && matchesFilter;
-  });
-  
-  const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / itemsPerPage));
-  const currentTransactions = filteredTransactions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [txSearch, txFilter]);
+  const currentCategories = financialData?.category_breakdown ?? [];
 
   // Rendering Tabs
   const renderFinanceTab = () => (
@@ -317,9 +414,11 @@ export default function StoreAnalyticsPage() {
             <CardTitle className="text-sm font-medium text-slate-500">{t.netProfit}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-slate-900">Rp 3.450.000</div>
+            <div className="text-2xl font-black text-slate-900">
+              {loadingFinance ? "..." : `Rp ${(financialData?.net_profit ?? 0).toLocaleString("id-ID")}`}
+            </div>
             <div className="flex items-center text-xs text-emerald-600 mt-1 font-semibold">
-              <ArrowUpRight className="w-3 h-3 mr-1" /> +12% dari minggu lalu
+              <ArrowUpRight className="w-3 h-3 mr-1" /> Data Real-time
             </div>
           </CardContent>
         </Card>
@@ -331,9 +430,11 @@ export default function StoreAnalyticsPage() {
             <CardTitle className="text-sm font-medium text-slate-500">{t.totalRevenue}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-slate-900">Rp 4.700.000</div>
+            <div className="text-2xl font-black text-slate-900">
+              {loadingFinance ? "..." : `Rp ${(financialData?.total_revenue ?? 0).toLocaleString("id-ID")}`}
+            </div>
             <div className="flex items-center text-xs text-emerald-600 mt-1 font-semibold">
-              <ArrowUpRight className="w-3 h-3 mr-1" /> +8% dari minggu lalu
+              <ArrowUpRight className="w-3 h-3 mr-1" /> Data Real-time
             </div>
           </CardContent>
         </Card>
@@ -345,9 +446,11 @@ export default function StoreAnalyticsPage() {
             <CardTitle className="text-sm font-medium text-slate-500">{t.totalExpense}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-slate-900">Rp 1.250.000</div>
-            <div className="flex items-center text-xs text-rose-600 mt-1 font-semibold">
-              <ArrowDownRight className="w-3 h-3 mr-1" /> -2% dari minggu lalu
+            <div className="text-2xl font-black text-slate-900">
+              {loadingFinance ? "..." : `Rp ${(financialData?.total_expense ?? 0).toLocaleString("id-ID")}`}
+            </div>
+            <div className="flex items-center text-xs text-slate-500 mt-1 font-semibold">
+              <ArrowDownRight className="w-3 h-3 mr-1 text-rose-500" /> Data Real-time
             </div>
           </CardContent>
         </Card>
@@ -359,9 +462,11 @@ export default function StoreAnalyticsPage() {
             <CardTitle className="text-sm font-bold text-emerald-800">{t.surplusRecovery}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-emerald-700">Rp 320.000</div>
+            <div className="text-2xl font-black text-emerald-700">
+              {loadingFinance ? "..." : `Rp ${(financialData?.surplus_recovery ?? 0).toLocaleString("id-ID")}`}
+            </div>
             <div className="text-xs text-emerald-600 mt-1">
-              Dari 12.5 kg surplus terselamatkan
+              Surplus Makanan Terselamatkan
             </div>
           </CardContent>
         </Card>
@@ -384,48 +489,43 @@ export default function StoreAnalyticsPage() {
           </CardContent>
         </Card>
 
-        {/* Transaction Table with Pagination */}
+        {/* Category Breakdown Table with Pagination */}
         <Card className="border-slate-200/60 shadow-sm bg-white">
           <CardHeader className="border-b border-slate-50 pb-4">
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
               <CardTitle className="text-lg font-bold text-slate-800 flex items-center gap-2 shrink-0">
-                <List className="w-4 h-4 text-resurva-dark" />
-                {t.recentTransactions}
+                <Layers className="w-5 h-5 text-resurva-dark" />
+                {txFilter === "in" ? "Pemasukan per Kategori" : "Pengeluaran per Kategori"}
               </CardTitle>
               
               <div className="flex flex-col items-end gap-3 w-full lg:w-auto">
-                <button 
-                  onClick={() => setTxModalOpen(true)}
-                  className="bg-resurva-dark hover:bg-resurva-dark-light text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors cursor-pointer self-end"
-                >
-                  <Plus className="w-4 h-4" /> Tambah Transaksi
-                </button>
-
                 <div className="flex flex-col sm:flex-row gap-3 items-end sm:items-center w-full lg:w-auto">
                   <div className="relative w-full sm:w-64">
                     <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
                     <input 
                       type="text" 
-                      placeholder="Cari transaksi..." 
+                      placeholder="Cari kategori..." 
                       className="pl-9 w-full h-10 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:border-resurva-dark transition-colors"
                       value={txSearch}
                       onChange={e => setTxSearch(e.target.value)}
                     />
                   </div>
-                  <div className="flex bg-slate-100 p-1 rounded-lg shrink-0 w-full sm:w-auto justify-center sm:justify-start">
-                    <button
-                      onClick={() => setTxFilter("all")}
-                      className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${txFilter === "all" ? "bg-white text-resurva-dark shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-                    >Semua</button>
+                  <div className="flex bg-slate-100 p-1 rounded-xl shrink-0 w-full sm:w-auto justify-center sm:justify-start">
                     <button
                       onClick={() => setTxFilter("in")}
-                      className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${txFilter === "in" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-                    >Masuk</button>
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${txFilter === "in" ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                    >+ Masuk (Pemasukan)</button>
                     <button
                       onClick={() => setTxFilter("out")}
-                      className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${txFilter === "out" ? "bg-white text-rose-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-                    >Keluar</button>
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${txFilter === "out" ? "bg-white text-rose-600 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                    >- Keluar (Pengeluaran)</button>
                   </div>
+                  <button 
+                    onClick={() => setTxModalOpen(true)}
+                    className="bg-resurva-dark hover:bg-resurva-dark-light text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors cursor-pointer self-end shrink-0"
+                  >
+                    <Plus className="w-4 h-4" /> Catat Transaksi
+                  </button>
                 </div>
               </div>
             </div>
@@ -435,27 +535,43 @@ export default function StoreAnalyticsPage() {
               <table className="w-full text-sm text-left text-slate-600">
                 <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100">
                   <tr>
-                    <th className="px-6 py-4 font-bold">Tanggal</th>
-                    <th className="px-6 py-4 font-bold">Deskripsi</th>
                     <th className="px-6 py-4 font-bold">Kategori</th>
-                    <th className="px-6 py-4 font-bold text-right">Nominal</th>
+                    <th className="px-6 py-4 font-bold text-center">Jumlah Transaksi</th>
+                    <th className="px-6 py-4 font-bold text-right">Rata-Rata per Transaksi</th>
+                    <th className="px-6 py-4 font-bold">Kontribusi (%)</th>
+                    <th className="px-6 py-4 font-bold text-right">Total Nominal</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {currentTransactions.map((trx) => (
-                    <tr key={trx.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap text-slate-500">{trx.date}</td>
-                      <td className="px-6 py-4 font-medium text-slate-900">{trx.desc}</td>
-                      <td className="px-6 py-4">
-                        <span className="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md text-xs font-semibold">
-                          {trx.category}
-                        </span>
+                  {currentCategories.map((item) => (
+                    <tr key={item.category} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-4 font-bold text-slate-900 flex items-center gap-2">
+                        <span className={`w-2.5 h-2.5 rounded-full ${txFilter === "in" ? "bg-emerald-500" : "bg-rose-500"}`}></span>
+                        {item.category}
                       </td>
-                      <td className={`px-6 py-4 font-bold text-right whitespace-nowrap ${trx.type === "in" ? "text-emerald-600" : "text-rose-600"}`}>
-                        {trx.type === "in" ? "+" : "-"} Rp {trx.amount.toLocaleString("id-ID")}
+                      <td className="px-6 py-4 text-center font-semibold text-slate-700">{item.count} transaksi</td>
+                      <td className="px-6 py-4 text-right font-medium text-slate-600">Rp {item.avg.toLocaleString("id-ID")}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden max-w-[120px]">
+                            <div 
+                              className={`h-full rounded-full ${txFilter === "in" ? "bg-emerald-500" : "bg-rose-500"}`} 
+                              style={{ width: `${Math.min(100, Math.max(5, item.percentage))}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-xs font-bold text-slate-600">{item.percentage.toFixed(1)}%</span>
+                        </div>
+                      </td>
+                      <td className={`px-6 py-4 font-bold text-right whitespace-nowrap text-base ${txFilter === "in" ? "text-emerald-600" : "text-rose-600"}`}>
+                        {txFilter === "in" ? "+" : "-"} Rp {item.total.toLocaleString("id-ID")}
                       </td>
                     </tr>
                   ))}
+                  {currentCategories.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-8 text-center text-slate-400 font-medium">Tidak ada data kategori ditemukan</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -463,24 +579,8 @@ export default function StoreAnalyticsPage() {
             {/* Pagination Controls */}
             <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50 rounded-b-xl">
               <span className="text-sm text-slate-500">
-                Menampilkan {filteredTransactions.length === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filteredTransactions.length)} dari {filteredTransactions.length} transaksi
+                {loadingFinance ? "Memuat..." : `${currentCategories.length} kategori`}
               </span>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="p-2 border border-slate-200 rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors bg-white shadow-sm"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button 
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="p-2 border border-slate-200 rounded-lg hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors bg-white shadow-sm"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -494,8 +594,8 @@ export default function StoreAnalyticsPage() {
         <CardHeader className="border-b border-slate-100/80 bg-slate-50/50 pb-4">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <CardTitle className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              <RefreshCw className="w-4 h-4 text-resurva-dark animate-spin-slow" />
-              {timeFrame === "weekly" ? t.salesTrendWeekly : t.salesTrendMonthly}
+              <BarChart3 className="w-5 h-5 text-resurva-dark" />
+              Total Penjualan Produk per SKU (Qty)
             </CardTitle>
 
             <div className="flex flex-wrap items-center gap-4">
@@ -593,15 +693,207 @@ export default function StoreAnalyticsPage() {
         </CardHeader>
         <CardContent className="pt-6">
           <div className="h-[400px] w-full">
-            <Line data={salesData} options={{
-              responsive: true, maintainAspectRatio: false,
-              plugins: { legend: { display: false } },
-              scales: { y: { beginAtZero: true, ticks: { callback: (value: any) => "Rp " + value.toLocaleString("id-ID") } } }
-            }} />
+            <Bar 
+              data={{
+                labels: salesDataBackend?.sku_sales ? salesDataBackend.sku_sales.map(s => s.sku) : [],
+                datasets: [{
+                  label: "Total Terjual (Unit/Pcs)",
+                  data: salesDataBackend?.sku_sales ? salesDataBackend.sku_sales.map(s => s.qty_sold) : [],
+                  backgroundColor: "#005043",
+                  borderRadius: 6,
+                }]
+              }}
+              options={{
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { callback: (value: any) => value + " Pcs" } } }
+              }} 
+            />
           </div>
         </CardContent>
       </Card>
 
+      {/* Grid Charts: Top Products & Category Distribution */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Slow-Moving Items Bar Chart */}
+        <Card className="border-slate-200/60 shadow-sm bg-white">
+          <CardHeader className="border-b border-slate-50 pb-4">
+            <CardTitle className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              Produk Lambat Terjual (Slow-Moving)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="h-64 w-full">
+              <Bar 
+                data={{
+                  labels: salesDataBackend?.slow_moving_items ? salesDataBackend.slow_moving_items.map(s => s.product_name) : [],
+                  datasets: [{
+                    label: "Lama Stok Mengendap (Hari)",
+                    data: salesDataBackend?.slow_moving_items ? salesDataBackend.slow_moving_items.map(s => s.days_in_stock) : [],
+                    backgroundColor: "rgba(245, 158, 11, 0.85)",
+                    borderRadius: 8,
+                  }]
+                }}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  indexAxis: 'y' as const,
+                  plugins: { legend: { display: false } },
+                  scales: { x: { beginAtZero: true, ticks: { callback: (v: any) => v + " Hari" } } }
+                }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Category Sales Distribution Doughnut Chart */}
+        <Card className="border-slate-200/60 shadow-sm bg-white">
+          <CardHeader className="border-b border-slate-50 pb-4">
+            <CardTitle className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <PieChart className="w-5 h-5 text-resurva-dark" />
+              Distribusi Penjualan per Kategori
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="h-64 w-full flex items-center justify-center">
+              <Doughnut 
+                data={{
+                  labels: salesDataBackend?.category_sales ? salesDataBackend.category_sales.map(c => c.category) : [],
+                  datasets: [{
+                    data: salesDataBackend?.category_sales ? salesDataBackend.category_sales.map(c => c.percentage) : [],
+                    backgroundColor: ["#005043", "#10b981", "#3b82f6", "#f59e0b", "#64748b"],
+                    borderWidth: 2,
+                    borderColor: "#ffffff"
+                  }]
+                }}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: { position: "right" as const, labels: { font: { size: 12, weight: "bold" } } }
+                  }
+                }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Accounting Inventory Stock Level Recommendation Panel */}
+      <Card className="border-slate-200/60 shadow-sm bg-white overflow-hidden">
+        <CardHeader className="border-b border-slate-100 bg-slate-50/50 pb-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Package className="w-5 h-5 text-resurva-dark" />
+                Rekomendasi Ketersediaan Stok (Accounting Inventory Control)
+              </CardTitle>
+              <p className="text-xs text-slate-500 mt-1">
+                Dihitung menggunakan rumus akuntansi <span className="font-bold text-slate-700">Safety Stock</span> & <span className="font-bold text-slate-700">Reorder Point (ROP)</span> berdasarkan laju penjualan harian & lead time pasokan.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-xs self-start lg:self-auto">
+              <Info className="w-4 h-4 text-blue-500 shrink-0" />
+              ROP = (Sales/Hari × Lead Time) + Safety Stock
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left text-slate-600">
+              <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100">
+                <tr>
+                  <th className="px-6 py-4 font-bold">Produk & Kategori</th>
+                  <th className="px-6 py-4 font-bold text-center">Stok Saat Ini</th>
+                  <th className="px-6 py-4 font-bold text-center">Minimum ROP</th>
+                  <th className="px-6 py-4 font-bold text-center">Safety Stock</th>
+                  <th className="px-6 py-4 font-bold text-center">Estimasi Ketahanan</th>
+                  <th className="px-6 py-4 font-bold text-center">Rekomendasi Restock</th>
+                  <th className="px-6 py-4 font-bold text-center">Status</th>
+                  <th className="px-6 py-4 font-bold text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {recommendationsData.map((item) => {
+                  const isWarning = item.status === "warning" || item.current_stock <= item.rop;
+                  const isOverstock = item.status === "overstock" || item.current_stock >= item.target_stock * 1.1;
+                  const daysRemaining = item.days_remaining.toFixed(1);
+                  const recommendQty = item.recommended_restock;
+
+                  return (
+                    <tr key={item.id} className={`hover:bg-slate-50/50 transition-colors ${isWarning ? "bg-amber-50/30" : ""}`}>
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-slate-900">{item.name}</div>
+                        <div className="text-xs text-slate-400 font-medium">{item.category}</div>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`font-extrabold text-base ${isWarning ? "text-amber-600" : isOverstock ? "text-blue-600" : "text-slate-800"}`}>
+                          {item.current_stock} {item.unit}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center font-bold text-slate-600">
+                        {item.rop} {item.unit}
+                      </td>
+                      <td className="px-6 py-4 text-center font-semibold text-slate-500">
+                        {item.safety_stock} {item.unit}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-md ${
+                          parseFloat(daysRemaining) < 1.5 ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-700"
+                        }`}>
+                          ~{daysRemaining} Hari
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        {recommendQty > 0 ? (
+                          <span className="font-extrabold text-emerald-600 text-sm">
+                            +{recommendQty} {item.unit}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400 font-semibold">— (Cukup)</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-center whitespace-nowrap">
+                        {isWarning ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-amber-100 text-amber-800 border border-amber-300">
+                            <AlertTriangle className="w-3.5 h-3.5" /> Waspada: Restock
+                          </span>
+                        ) : isOverstock ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-blue-100 text-blue-800 border border-blue-200">
+                            <Info className="w-3.5 h-3.5" /> Overstock
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Stok Aman
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <a 
+                          href="/merchant/inventory" 
+                          className="inline-flex items-center gap-1 text-xs font-bold text-resurva-dark hover:underline cursor-pointer"
+                        >
+                          Restock <ArrowRight className="w-3.5 h-3.5" />
+                        </a>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {recommendationsData.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-8 text-center text-slate-400 font-medium">
+                      {loadingRecommendations ? "Memuat rekomendasi stok..." : "Tidak ada rekomendasi stok produk ditemukan"}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* AI Insights Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="border-slate-200/60 shadow-sm relative overflow-hidden bg-gradient-to-br from-indigo-50/30 via-white to-white border-l-4 border-l-resurva-dark">
           <CardHeader className="pb-2">
