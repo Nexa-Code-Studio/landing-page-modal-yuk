@@ -71,6 +71,24 @@ const TRANSLATIONS = {
     mockResponseDefault: "Based on store data, your average daily profit is Rp 450,000. Heavy Meal category contributes 48% of total revenue. Reducing surplus wastage could increase profit margin by up to 6.2%.",
     weekly: "Weekly",
     monthly: "Monthly",
+    catSales: "Product Sales",
+    catCapital: "Initial Capital / Funding",
+    catAdjustment: "Balance Adjustment",
+    catIngredients: "Raw Materials",
+    catSalary: "Employee Salaries",
+    catUtilities: "Utilities (Water/Electricity)",
+    catRent: "Rent",
+    catLogistics: "Logistics & Shipping",
+    catMarketing: "Marketing & Promo",
+    catMaintenance: "Maintenance & Equipment",
+    catWithdrawal: "Digital Wallet Withdrawal",
+    catOthers: "Others",
+    "ready-to-eat": "Ready to Eat",
+    "ready_to_eat": "Ready to Eat",
+    packaged: "Packaged Food",
+    bakery: "Bakery",
+    produce: "Fresh Produce",
+    other: "Others",
   },
   id: {
     title: "Analitik & Keuangan Toko",
@@ -100,6 +118,24 @@ const TRANSLATIONS = {
     mockResponseDefault: "Berdasarkan data toko Anda, rata-rata laba harian Anda adalah Rp 450.000. Kategori Makanan Berat menyumbang 48% dari total pendapatan. Mengurangi surplus terbuang dapat menaikkan margin hingga 6,2%.",
     weekly: "Mingguan",
     monthly: "Bulanan",
+    catSales: "Penjualan Produk",
+    catCapital: "Modal Awal / Suntikan Dana",
+    catAdjustment: "Penyesuaian Saldo",
+    catIngredients: "Bahan Baku",
+    catSalary: "Gaji Karyawan",
+    catUtilities: "Utilitas (Listrik/Air/Internet)",
+    catRent: "Sewa Tempat",
+    catLogistics: "Logistik & Pengiriman",
+    catMarketing: "Pemasaran & Promo",
+    catMaintenance: "Perawatan & Peralatan",
+    catWithdrawal: "Penarikan Saldo Digital",
+    catOthers: "Lainnya",
+    "ready-to-eat": "Makanan Berat",
+    "ready_to_eat": "Makanan Berat",
+    packaged: "Makanan Kemasan",
+    bakery: "Bakery",
+    produce: "Produk Segar",
+    other: "Lainnya",
   }
 };
 
@@ -268,6 +304,11 @@ export default function StoreAnalyticsPage() {
   }, []);
 
   const t = TRANSLATIONS[lang];
+
+  // Get localized category name
+  const getCategoryLabel = (catKey: string) => {
+    return t[catKey as keyof typeof t] || catKey;
+  };
 
   // Initialize chat welcome message
   useEffect(() => {
@@ -547,7 +588,7 @@ export default function StoreAnalyticsPage() {
                     <tr key={item.category} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-6 py-4 font-bold text-slate-900 flex items-center gap-2">
                         <span className={`w-2.5 h-2.5 rounded-full ${txFilter === "in" ? "bg-emerald-500" : "bg-rose-500"}`}></span>
-                        {item.category}
+                        {getCategoryLabel(item.category)}
                       </td>
                       <td className="px-6 py-4 text-center font-semibold text-slate-700">{item.count} transaksi</td>
                       <td className="px-6 py-4 text-right font-medium text-slate-600">Rp {item.avg.toLocaleString("id-ID")}</td>
@@ -759,7 +800,7 @@ export default function StoreAnalyticsPage() {
             <div className="h-64 w-full flex items-center justify-center">
               <Doughnut 
                 data={{
-                  labels: salesDataBackend?.category_sales ? salesDataBackend.category_sales.map(c => c.category) : [],
+                  labels: salesDataBackend?.category_sales ? salesDataBackend.category_sales.map(c => getCategoryLabel(c.category)) : [],
                   datasets: [{
                     data: salesDataBackend?.category_sales ? salesDataBackend.category_sales.map(c => c.percentage) : [],
                     backgroundColor: ["#005043", "#10b981", "#3b82f6", "#f59e0b", "#64748b"],

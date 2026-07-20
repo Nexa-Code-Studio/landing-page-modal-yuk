@@ -97,10 +97,26 @@ const loginTranslations = {
   },
 };
 
-// Demo credentials for Catering Mpok Siti Group - Cabang 9
+// Demo credentials for all roles
 const DEMO_CREDENTIALS = {
-  email: "seller_store29@resurva.com",
-  password: "password123",
+  Superadmin: {
+    email: "admin@resurva.com",
+    password: "password123",
+    hintEn: "Superadmin Pusat — full platform access",
+    hintId: "Superadmin Pusat — akses penuh platform",
+  },
+  Merchant: {
+    email: "seller_store29@resurva.com",
+    password: "password123",
+    hintEn: "Catering Mpok Siti — data-rich test store",
+    hintId: "Catering Mpok Siti — toko uji dengan data lengkap",
+  },
+  Enterprise: {
+    email: "owner_biz1@resurva.com",
+    password: "password123",
+    hintEn: "Sentosa Bakery Group — multi-branch analytics",
+    hintId: "Sentosa Bakery Group — analitik multi-cabang",
+  },
 };
 
 const style = {
@@ -169,12 +185,13 @@ export function SharedLogin({
   };
 
   const handleDemoLogin = async () => {
+    const creds = DEMO_CREDENTIALS[roleKey];
     setError(null);
-    setIdentity(DEMO_CREDENTIALS.email);
-    setPassword(DEMO_CREDENTIALS.password);
+    setIdentity(creds.email);
+    setPassword(creds.password);
     setLoading(true);
     try {
-      await loginWithCredentials(DEMO_CREDENTIALS.email, DEMO_CREDENTIALS.password);
+      await loginWithCredentials(creds.email, creds.password);
       router.push(redirectUrl);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -306,7 +323,7 @@ export function SharedLogin({
         </Card>
 
         {/* Demo Login Helper */}
-        {roleKey === "Merchant" && (
+        {(roleKey === "Merchant" || roleKey === "Enterprise" || roleKey === "Superadmin") && (
           <div className="mt-4 rounded-xl border border-resurva-gold/40 bg-resurva-gold/10 backdrop-blur-sm p-4">
             <div className="flex items-start gap-3">
               <div className="flex-shrink-0 mt-0.5">
@@ -316,13 +333,15 @@ export function SharedLogin({
                 <p className="text-xs font-semibold text-resurva-dark mb-0.5">
                   {commonText.demoLogin}
                 </p>
-                <p className="text-xs text-slate-500 mb-2">{commonText.demoHint}</p>
+                <p className="text-xs text-slate-500 mb-2">
+                  {lang === "en" ? DEMO_CREDENTIALS[roleKey].hintEn : DEMO_CREDENTIALS[roleKey].hintId}
+                </p>
                 <div className="flex flex-col gap-1 mb-3">
                   <code className="text-[11px] text-slate-600 bg-white/70 rounded px-2 py-0.5 font-mono truncate">
-                    {DEMO_CREDENTIALS.email}
+                    {DEMO_CREDENTIALS[roleKey].email}
                   </code>
                   <code className="text-[11px] text-slate-600 bg-white/70 rounded px-2 py-0.5 font-mono">
-                    {DEMO_CREDENTIALS.password}
+                    {DEMO_CREDENTIALS[roleKey].password}
                   </code>
                 </div>
                 <Button
