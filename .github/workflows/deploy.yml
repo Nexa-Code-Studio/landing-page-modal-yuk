@@ -135,7 +135,8 @@ jobs:
             cd /var/www/resurva/resurva_web
 
             echo "--- Git pull latest changes ---"
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
 
             echo "--- Install dependencies ---"
             npm install --quiet
