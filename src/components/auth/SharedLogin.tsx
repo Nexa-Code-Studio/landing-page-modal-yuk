@@ -138,12 +138,14 @@ const style = {
   mixBlend: "mix-blend-multiply opacity-40",
 };
 
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+
 export function SharedLogin({
   roleName,
   redirectUrl,
 }: SharedLoginProps) {
   const router = useRouter();
-  const [lang, setLang] = React.useState<"en" | "id">("en");
+  const { lang, toggleLanguage } = useLanguage();
   const [identity, setIdentity] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -151,20 +153,9 @@ export function SharedLogin({
 
   React.useEffect(() => {
     document.title = `Resurva - Login ${roleName}`;
-    const savedLang = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
-    if (savedLang) {
-      setLang(savedLang);
-    } else {
-      const systemLang = navigator.language.startsWith("id") ? "id" : "en";
-      setLang(systemLang);
-    }
   }, [roleName]);
 
-  const toggleLanguage = () => {
-    const newLang = lang === "en" ? "id" : "en";
-    setLang(newLang);
-    localStorage.setItem("preferredLanguage", newLang);
-  };
+
 
   const roleKey = (roleName || "Merchant") as "Superadmin" | "Merchant" | "Enterprise";
   const currentText = loginTranslations[lang][roleKey] || loginTranslations[lang].Merchant;

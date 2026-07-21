@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Leaf, 
@@ -12,11 +12,77 @@ import {
   TrendingUp, 
   AlertCircle,
   CheckCircle2,
-  Clock
+  Clock,
+  Loader2
 } from "lucide-react";
 import Link from "next/link";
+import { apiClient } from "@/lib/api";
 
 export default function SuperadminDashboardPage() {
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchStats = async () => {
+    setLoading(true);
+    try {
+      const data = await apiClient.get<any>("/analytics/superadmin/stats");
+      setStats(data);
+    } catch (err) {
+      console.error("Gagal memuat data statistik superadmin:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const formatCurrency = (val: number) => {
+    if (!val) return "Rp 0";
+    if (val >= 1000000000) {
+      return `Rp ${(val / 1000000000).toFixed(1).replace(".0", "")} Milyar`;
+    }
+    if (val >= 1000000) {
+      return `Rp ${(val / 1000000).toFixed(1).replace(".0", "")} Juta`;
+    }
+    return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(val);
+  };
+
+  const formatWeight = (kg: number) => {
+    if (kg === undefined || kg === null) return "-";
+    if (kg >= 1000) {
+      return `${(kg / 1000).toFixed(1).replace(".0", "")} Ton`;
+    }
+    return `${kg.toLocaleString("id-ID")} Kg`;
+  };
+
+  const formatCo2 = (kg: number) => {
+    if (kg === undefined || kg === null) return "-";
+    return `${kg.toLocaleString("id-ID")} Kg`;
+  };
+
+  const renderDiffWeight = (diff: number | null) => {
+    if (diff === null || diff === undefined) return "-";
+    const sign = diff >= 0 ? "+" : "";
+    return `${sign}${formatWeight(diff)} dari bulan lalu`;
+  };
+
+  const renderDiffCo2 = (diff: number | null) => {
+    if (diff === null || diff === undefined) return "-";
+    const sign = diff >= 0 ? "+" : "";
+    return `${sign}${formatCo2(diff)} dari bulan lalu`;
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center gap-3 text-slate-500">
+        <Loader2 className="w-9 h-9 animate-spin text-[#0F3D2E]" />
+        <span className="font-semibold text-sm animate-pulse">Memuat dashboard superadmin...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       
@@ -24,7 +90,7 @@ export default function SuperadminDashboardPage() {
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Dashboard Utama Superadmin</h1>
-          <p className="text-slate-500 mt-1">Pantau seluruh aktivitas pengguna, metrik keberlanjutan global, dan antrean sistem.</p>
+          <p className="text-slate-500 mt-1">Pantau seluruh aktivitas pengguna, metrik keberlanjutan global, dan antrean sistem secara realtime.</p>
         </div>
       </div>
 
@@ -43,9 +109,14 @@ export default function SuperadminDashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-black text-slate-900">24.5 Ton</div>
-              <p className="text-xs text-emerald-600 mt-1 font-semibold flex items-center gap-1">
-                <TrendingUp className="w-3 h-3" /> +1.2 Ton dari bulan lalu
+              <div className="text-3xl font-black text-slate-900">
+                {formatWeight(stats?.total_saved_kg)}
+              </div>
+              <p className={`text-xs mt-1 font-semibold flex items-center gap-1 ${
+                stats?.total_saved_kg_diff === null ? 'text-slate-400' : 'text-emerald-600'
+              }`}>
+                {stats?.total_saved_kg_diff !== null && <TrendingUp className="w-3 h-3" />}
+                {renderDiffWeight(stats?.total_saved_kg_diff)}
               </p>
             </CardContent>
           </Card>
@@ -58,9 +129,14 @@ export default function SuperadminDashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-black text-slate-900">38.200 Kg</div>
-              <p className="text-xs text-blue-600 mt-1 font-semibold flex items-center gap-1">
-                <TrendingUp className="w-3 h-3" /> +2.100 Kg dari bulan lalu
+              <div className="text-3xl font-black text-slate-900">
+                {formatCo2(stats?.total_co2_saved_kg)}
+              </div>
+              <p className={`text-xs mt-1 font-semibold flex items-center gap-1 ${
+                stats?.total_co2_saved_kg_diff === null ? 'text-slate-400' : 'text-blue-600'
+              }`}>
+                {stats?.total_co2_saved_kg_diff !== null && <TrendingUp className="w-3 h-3" />}
+                {renderDiffCo2(stats?.total_co2_saved_kg_diff)}
               </p>
             </CardContent>
           </Card>
@@ -68,12 +144,14 @@ export default function SuperadminDashboardPage() {
           <Card className="border-slate-200/60 shadow-sm bg-white">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-slate-500 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-resurva-dark" />
+                <CheckCircle2 className="w-4 h-4 text-[#0F3D2E]" />
                 Total Transaksi Surplus
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-black text-slate-900">142.850</div>
+              <div className="text-3xl font-black text-slate-900">
+                {(stats?.total_transactions || 0).toLocaleString("id-ID")}
+              </div>
               <p className="text-xs text-slate-500 mt-1">Transaksi sukses lintas platform</p>
             </CardContent>
           </Card>
@@ -86,7 +164,7 @@ export default function SuperadminDashboardPage() {
         {/* Growth Metrics */}
         <div className="space-y-4">
           <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-resurva-dark" />
+            <TrendingUp className="w-5 h-5 text-[#0F3D2E]" />
             Pertumbuhan Platform
           </h2>
           <Card className="border-slate-200/60 shadow-sm">
@@ -94,8 +172,8 @@ export default function SuperadminDashboardPage() {
               <div className="divide-y divide-slate-100">
                 <div className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-resurva-green-muted flex items-center justify-center">
-                      <Users className="w-5 h-5 text-resurva-dark" />
+                    <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center">
+                      <Users className="w-5 h-5 text-slate-600" />
                     </div>
                     <div>
                       <p className="text-sm font-bold text-slate-900">Total Pengguna (Customers)</p>
@@ -103,8 +181,12 @@ export default function SuperadminDashboardPage() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-lg font-black text-slate-900">45.2K</p>
-                    <p className="text-xs text-emerald-600 font-bold">+2.4K bulan ini</p>
+                    <p className="text-lg font-black text-slate-900">
+                      {(stats?.total_customers || 0).toLocaleString("id-ID")}
+                    </p>
+                    <p className="text-xs text-emerald-600 font-bold">
+                      +{stats?.total_customers_diff || 0} bulan ini
+                    </p>
                   </div>
                 </div>
 
@@ -119,8 +201,12 @@ export default function SuperadminDashboardPage() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-lg font-black text-slate-900">1.250</p>
-                    <p className="text-xs text-emerald-600 font-bold">+45 bulan ini</p>
+                    <p className="text-lg font-black text-slate-900">
+                      {(stats?.total_partners || 0).toLocaleString("id-ID")}
+                    </p>
+                    <p className="text-xs text-emerald-600 font-bold">
+                      +{stats?.total_partners_diff || 0} bulan ini
+                    </p>
                   </div>
                 </div>
                 
@@ -135,7 +221,9 @@ export default function SuperadminDashboardPage() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-lg font-black text-slate-900">Rp 4.5 Milyar</p>
+                    <p className="text-lg font-black text-slate-900">
+                      {formatCurrency(stats?.global_gmv)}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -158,34 +246,46 @@ export default function SuperadminDashboardPage() {
                 <Link href="/superadmin/verifications/merchant" className="block">
                   <div className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50 transition-all group cursor-pointer">
                     <div className="flex items-center gap-3">
-                      <Store className="w-5 h-5 text-slate-400 group-hover:text-resurva-dark transition-colors" />
+                      <Store className="w-5 h-5 text-slate-400 group-hover:text-[#0F3D2E] transition-colors" />
                       <div>
                         <p className="text-sm font-bold text-slate-800">Verifikasi Merchant Tunggal</p>
                         <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                          <Clock className="w-3 h-3" /> 3 pengajuan menunggu
+                          <Clock className="w-3 h-3" /> {stats?.pending_merchant_verifications || 0} pengajuan menunggu
                         </p>
                       </div>
                     </div>
-                    <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-sm">
-                      3
-                    </div>
+                    {stats?.pending_merchant_verifications > 0 ? (
+                      <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-sm">
+                        {stats.pending_merchant_verifications}
+                      </div>
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-xs">
+                        0
+                      </div>
+                    )}
                   </div>
                 </Link>
 
                 <Link href="/superadmin/verifications/enterprise" className="block">
                   <div className="flex items-center justify-between p-3 rounded-xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50 transition-all group cursor-pointer">
                     <div className="flex items-center gap-3">
-                      <Building2 className="w-5 h-5 text-slate-400 group-hover:text-resurva-dark transition-colors" />
+                      <Building2 className="w-5 h-5 text-slate-400 group-hover:text-[#0F3D2E] transition-colors" />
                       <div>
                         <p className="text-sm font-bold text-slate-800">Verifikasi Enterprise</p>
                         <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                          <Clock className="w-3 h-3" /> 2 pengajuan menunggu
+                          <Clock className="w-3 h-3" /> {stats?.pending_enterprise_verifications || 0} pengajuan menunggu
                         </p>
                       </div>
                     </div>
-                    <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-sm">
-                      2
-                    </div>
+                    {stats?.pending_enterprise_verifications > 0 ? (
+                      <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center font-bold text-sm">
+                        {stats.pending_enterprise_verifications}
+                      </div>
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-xs">
+                        0
+                      </div>
+                    )}
                   </div>
                 </Link>
               </div>

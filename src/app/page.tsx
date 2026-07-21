@@ -4,6 +4,10 @@ import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect } from "react";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+import { apiClient } from "@/lib/api";
+
+
 
 // Import UI components from shadcn
 import { Button } from "@/components/ui/button";
@@ -221,17 +225,58 @@ const translations = {
 };
 
 export default function LandingPage() {
-  const [lang, setLang] = useState<"en" | "id">("en");
   const [isLoginOpen, setIsLoginOpen] = useState(false);
+
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  // File Picker Refs
+  const ktpInputRef = React.useRef<HTMLInputElement>(null);
+  const nibTokoInputRef = React.useRef<HTMLInputElement>(null);
+  const aktaInputRef = React.useRef<HTMLInputElement>(null);
+  const nibEntInputRef = React.useRef<HTMLInputElement>(null);
+  const npwpInputRef = React.useRef<HTMLInputElement>(null);
 
   // Partnership Modal States
   const [isPartnerModalOpen, setIsPartnerModalOpen] = useState(false);
   const [partnerType, setPartnerType] = useState<"Merchant" | "Enterprise">("Merchant");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+
+  // Form fields state
+  const [partnerName, setPartnerName] = useState("");
+  const [partnerOwner, setPartnerOwner] = useState("");
+  const [partnerCategory, setPartnerCategory] = useState("");
+  const [partnerBranchCount, setPartnerBranchCount] = useState<number | "">("");
+  const [partnerAddress, setPartnerAddress] = useState("");
+  const [partnerEmail, setPartnerEmail] = useState("");
+  const [partnerPhone, setPartnerPhone] = useState("");
+
+  // Uploaded filenames
+  const [ktpFileName, setKtpFileName] = useState("");
+  const [nibTokoFileName, setNibTokoFileName] = useState("");
+  const [aktaFileName, setAktaFileName] = useState("");
+  const [nibEntFileName, setNibEntFileName] = useState("");
+  const [npwpFileName, setNpwpFileName] = useState("");
+
+  useEffect(() => {
+    if (!isPartnerModalOpen) {
+      setPartnerName("");
+      setPartnerOwner("");
+      setPartnerCategory("");
+      setPartnerBranchCount("");
+      setPartnerAddress("");
+      setPartnerEmail("");
+      setPartnerPhone("");
+      setKtpFileName("");
+      setNibTokoFileName("");
+      setAktaFileName("");
+      setNibEntFileName("");
+      setNpwpFileName("");
+      setIsSuccess(false);
+    }
+  }, [isPartnerModalOpen]);
 
   useEffect(() => {
     document.title = "Resurva - Food Waste Marketplace";
@@ -249,16 +294,10 @@ export default function LandingPage() {
     };
   }, []);
 
-  useEffect(() => {
-    // Detect system language
-    const savedLang = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
-    if (savedLang) {
-      setLang(savedLang);
-    } else {
-      const systemLang = navigator.language.startsWith("id") ? "id" : "en";
-      setLang(systemLang);
-    }
+  const { lang, toggleLanguage } = useLanguage();
 
+
+  useEffect(() => {
     // Scroll listener for navbar styling
     const handleScroll = () => {
       if (window.scrollY > 20) {
@@ -272,20 +311,54 @@ export default function LandingPage() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const toggleLanguage = () => {
-    const newLang = lang === "en" ? "id" : "en";
-    setLang(newLang);
-    localStorage.setItem("preferredLanguage", newLang);
-  };
 
-  const handlePartnerSubmit = (e: React.FormEvent) => {
+  const handlePartnerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    // Simulate system API request
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      const documents: string[] = [];
+      if (partnerType === "Merchant") {
+        if (ktpInputRef.current?.files?.[0]) {
+          const res = await apiClient.uploadFile("/stores/upload-image", ktpInputRef.current.files[0]);
+          documents.push(res.access_url);
+        }
+        if (nibTokoInputRef.current?.files?.[0]) {
+          const res = await apiClient.uploadFile("/stores/upload-image", nibTokoInputRef.current.files[0]);
+          documents.push(res.access_url);
+        }
+      } else {
+        if (aktaInputRef.current?.files?.[0]) {
+          const res = await apiClient.uploadFile("/stores/upload-image", aktaInputRef.current.files[0]);
+          documents.push(res.access_url);
+        }
+        if (nibEntInputRef.current?.files?.[0]) {
+          const res = await apiClient.uploadFile("/stores/upload-image", nibEntInputRef.current.files[0]);
+          documents.push(res.access_url);
+        }
+        if (npwpInputRef.current?.files?.[0]) {
+          const res = await apiClient.uploadFile("/stores/upload-image", npwpInputRef.current.files[0]);
+          documents.push(res.access_url);
+        }
+      }
+
+      const payload = {
+        partner_type: partnerType.toUpperCase(),
+        name: partnerName,
+        owner_or_director: partnerOwner,
+        category: partnerType === "Merchant" ? partnerCategory : null,
+        branch_count: partnerType === "Enterprise" ? Number(partnerBranchCount) : null,
+        address: partnerAddress,
+        email: partnerEmail || null,
+        phone: partnerPhone || null,
+        documents: documents.length > 0 ? documents : null
+      };
+      await apiClient.post("/verifications/", payload);
       setIsSuccess(true);
-    }, 1500);
+    } catch (err: any) {
+      alert("Gagal mengirim pendaftaran: " + (err.message || err));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const t = translations[lang];
@@ -1049,18 +1122,58 @@ export default function LandingPage() {
                         <Label className="text-sm font-semibold text-slate-700">
                           {partnerType === "Merchant" ? "Nama Toko / Outlet" : "Nama Perusahaan (Badan Hukum)"} <span className="text-rose-500">*</span>
                         </Label>
-                        <Input required placeholder={partnerType === "Merchant" ? "Cth: Kopi Senja" : "Cth: PT Resurva Indonesia"} className="rounded-xl border-slate-200 bg-slate-50 focus-visible:ring-[#0F3D2E]" />
+                        <Input 
+                          required 
+                          value={partnerName}
+                          onChange={e => setPartnerName(e.target.value)}
+                          placeholder={partnerType === "Merchant" ? "Cth: Kopi Senja" : "Cth: PT Resurva Indonesia"} 
+                          className="rounded-xl border-slate-200 bg-slate-50 focus-visible:ring-[#0F3D2E]" 
+                        />
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-sm font-semibold text-slate-700">
                           {partnerType === "Merchant" ? "Nama Pemilik" : "Nama Direktur Utama / PIC"} <span className="text-rose-500">*</span>
                         </Label>
-                        <Input required placeholder="Nama Lengkap" className="rounded-xl border-slate-200 bg-slate-50 focus-visible:ring-[#0F3D2E]" />
+                        <Input 
+                          required 
+                          value={partnerOwner}
+                          onChange={e => setPartnerOwner(e.target.value)}
+                          placeholder="Nama Lengkap" 
+                          className="rounded-xl border-slate-200 bg-slate-50 focus-visible:ring-[#0F3D2E]" 
+                        />
                       </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-sm font-semibold text-slate-700">Email Kontak <span className="text-rose-500">*</span></Label>
+                        <Input 
+                          required 
+                          type="email"
+                          value={partnerEmail}
+                          onChange={e => setPartnerEmail(e.target.value)}
+                          placeholder="Cth: pemilik@email.com" 
+                          className="rounded-xl border-slate-200 bg-slate-50 focus-visible:ring-[#0F3D2E]" 
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-sm font-semibold text-slate-700">No. Telepon / WhatsApp <span className="text-rose-500">*</span></Label>
+                        <Input 
+                          required 
+                          value={partnerPhone}
+                          onChange={e => setPartnerPhone(e.target.value)}
+                          placeholder="Cth: 081234567890" 
+                          className="rounded-xl border-slate-200 bg-slate-50 focus-visible:ring-[#0F3D2E]" 
+                        />
+                      </div>
+
                       {partnerType === "Merchant" ? (
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 sm:col-span-2">
                           <Label className="text-sm font-semibold text-slate-700">Kategori Bisnis <span className="text-rose-500">*</span></Label>
-                          <select required className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3D2E]">
+                          <select 
+                            required 
+                            value={partnerCategory}
+                            onChange={e => setPartnerCategory(e.target.value)}
+                            className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3D2E]"
+                          >
                             <option value="">Pilih Kategori...</option>
                             <option value="F&B">Food & Beverage (F&B)</option>
                             <option value="Bakery">Bakery / Pastry</option>
@@ -1070,16 +1183,32 @@ export default function LandingPage() {
                           </select>
                         </div>
                       ) : (
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 sm:col-span-2">
                           <Label className="text-sm font-semibold text-slate-700">Estimasi Cabang Aktif <span className="text-rose-500">*</span></Label>
-                          <Input required type="number" min="1" placeholder="Cth: 15" className="rounded-xl border-slate-200 bg-slate-50 focus-visible:ring-[#0F3D2E]" />
+                          <Input 
+                            required 
+                            type="number" 
+                            min="1" 
+                            value={partnerBranchCount}
+                            onChange={e => setPartnerBranchCount(e.target.value ? Number(e.target.value) : "")}
+                            placeholder="Cth: 15" 
+                            className="rounded-xl border-slate-200 bg-slate-50 focus-visible:ring-[#0F3D2E]" 
+                          />
                         </div>
                       )}
+                      
                       <div className="space-y-1.5 sm:col-span-2">
                         <Label className="text-sm font-semibold text-slate-700">
                           {partnerType === "Merchant" ? "Alamat Lengkap Toko" : "Alamat Kantor Pusat"} <span className="text-rose-500">*</span>
                         </Label>
-                        <textarea required rows={2} className="flex w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3D2E] resize-none" placeholder="Masukkan alamat lengkap..." />
+                        <textarea 
+                          required 
+                          rows={2} 
+                          value={partnerAddress}
+                          onChange={e => setPartnerAddress(e.target.value)}
+                          className="flex w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F3D2E] resize-none" 
+                          placeholder="Masukkan alamat lengkap..." 
+                        />
                       </div>
                     </div>
                   </div>
@@ -1091,33 +1220,103 @@ export default function LandingPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {partnerType === "Merchant" ? (
                         <>
-                          <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:bg-slate-50 transition-colors cursor-pointer group">
+                          <div 
+                            onClick={() => ktpInputRef.current?.click()}
+                            className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:bg-slate-50 transition-colors cursor-pointer group"
+                          >
+                            <input 
+                              type="file" 
+                              ref={ktpInputRef}
+                              style={{ display: "none" }}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) setKtpFileName(file.name);
+                              }}
+                            />
                             <UploadCloud className="w-6 h-6 text-slate-400 mx-auto mb-2 group-hover:text-[#0F3D2E] transition-colors" />
                             <p className="text-sm font-semibold text-slate-700">KTP Pemilik <span className="text-rose-500">*</span></p>
-                            <p className="text-xs text-slate-500 mt-1">Klik untuk unggah</p>
+                            <p className="text-xs text-slate-500 mt-1 truncate max-w-full px-2">
+                              {ktpFileName || "Klik untuk unggah"}
+                            </p>
                           </div>
-                          <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:bg-slate-50 transition-colors cursor-pointer group">
+                          <div 
+                            onClick={() => nibTokoInputRef.current?.click()}
+                            className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:bg-slate-50 transition-colors cursor-pointer group"
+                          >
+                            <input 
+                              type="file" 
+                              ref={nibTokoInputRef}
+                              style={{ display: "none" }}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) setNibTokoFileName(file.name);
+                              }}
+                            />
                             <UploadCloud className="w-6 h-6 text-slate-400 mx-auto mb-2 group-hover:text-[#0F3D2E] transition-colors" />
                             <p className="text-sm font-semibold text-slate-700">NIB Toko <span className="text-rose-500">*</span></p>
-                            <p className="text-xs text-slate-500 mt-1">Klik untuk unggah</p>
+                            <p className="text-xs text-slate-500 mt-1 truncate max-w-full px-2">
+                              {nibTokoFileName || "Klik untuk unggah"}
+                            </p>
                           </div>
                         </>
                       ) : (
                         <>
-                          <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:bg-slate-50 transition-colors cursor-pointer group">
+                          <div 
+                            onClick={() => aktaInputRef.current?.click()}
+                            className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:bg-slate-50 transition-colors cursor-pointer group"
+                          >
+                            <input 
+                              type="file" 
+                              ref={aktaInputRef}
+                              style={{ display: "none" }}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) setAktaFileName(file.name);
+                              }}
+                            />
                             <UploadCloud className="w-6 h-6 text-slate-400 mx-auto mb-2 group-hover:text-[#0F3D2E] transition-colors" />
                             <p className="text-sm font-semibold text-slate-700">Akta Pendirian PT <span className="text-rose-500">*</span></p>
-                            <p className="text-xs text-slate-500 mt-1">Klik untuk unggah</p>
+                            <p className="text-xs text-slate-500 mt-1 truncate max-w-full px-2">
+                              {aktaFileName || "Klik untuk unggah"}
+                            </p>
                           </div>
-                          <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:bg-slate-50 transition-colors cursor-pointer group">
+                          <div 
+                            onClick={() => nibEntInputRef.current?.click()}
+                            className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:bg-slate-50 transition-colors cursor-pointer group"
+                          >
+                            <input 
+                              type="file" 
+                              ref={nibEntInputRef}
+                              style={{ display: "none" }}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) setNibEntFileName(file.name);
+                              }}
+                            />
                             <UploadCloud className="w-6 h-6 text-slate-400 mx-auto mb-2 group-hover:text-[#0F3D2E] transition-colors" />
                             <p className="text-sm font-semibold text-slate-700">NIB Perusahaan <span className="text-rose-500">*</span></p>
-                            <p className="text-xs text-slate-500 mt-1">Klik untuk unggah</p>
+                            <p className="text-xs text-slate-500 mt-1 truncate max-w-full px-2">
+                              {nibEntFileName || "Klik untuk unggah"}
+                            </p>
                           </div>
-                          <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:bg-slate-50 transition-colors cursor-pointer group sm:col-span-2">
+                          <div 
+                            onClick={() => npwpInputRef.current?.click()}
+                            className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:bg-slate-50 transition-colors cursor-pointer group sm:col-span-2"
+                          >
+                            <input 
+                              type="file" 
+                              ref={npwpInputRef}
+                              style={{ display: "none" }}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) setNpwpFileName(file.name);
+                              }}
+                            />
                             <UploadCloud className="w-6 h-6 text-slate-400 mx-auto mb-2 group-hover:text-[#0F3D2E] transition-colors" />
                             <p className="text-sm font-semibold text-slate-700">NPWP Perusahaan <span className="text-rose-500">*</span></p>
-                            <p className="text-xs text-slate-500 mt-1">Klik untuk unggah</p>
+                            <p className="text-xs text-slate-500 mt-1 truncate max-w-full px-2">
+                              {npwpFileName || "Klik untuk unggah"}
+                            </p>
                           </div>
                         </>
                       )}

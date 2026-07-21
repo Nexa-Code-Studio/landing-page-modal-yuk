@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -15,7 +15,8 @@ import {
 } from "chart.js";
 import { Bar } from "react-chartjs-2";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, Wallet, Download, Activity, List, Plus, Search, ChevronLeft, ChevronRight, X, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { DollarSign, Wallet, Download, Activity, List, Plus, Search, ChevronLeft, ChevronRight, X, ArrowUpRight, ArrowDownRight, Loader2 } from "lucide-react";
+import { apiClient, getStoredUser } from "@/lib/api";
 
 ChartJS.register(
   CategoryScale,
@@ -29,20 +30,35 @@ ChartJS.register(
   Filler
 );
 
+interface TransactionItem {
+  id: string | number;
+  type: "in" | "out";
+  category: string;
+  desc: string;
+  amount: number;
+  date: string;
+}
+
+interface AnalyticsData {
+  gmv: number;
+  total_combined_profit: number;
+  hq_operational_expense: number;
+  cashflow_monthly: { month: string; cash_in: number; cash_out: number }[];
+}
+
 export default function EnterpriseFinancePage() {
+  const [businessId, setBusinessId] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+  
   const [txSearch, setTxSearch] = useState("");
   const [txFilter, setTxFilter] = useState<"all" | "in" | "out">("all");
-  const [transactions, setTransactions] = useState([
-    { id: 1, type: "out", category: "Gaji & Kompensasi", desc: "Gaji Staf HQ Bulan Juni", amount: 125000000, date: "2026-06-25 10:00" },
-    { id: 2, type: "in", category: "Setoran Cabang", desc: "Agregasi Setoran Cabang Jakarta", amount: 350000000, date: "2026-06-24 18:00" },
-    { id: 3, type: "out", category: "Marketing Nasional", desc: "Iklan Sosmed Kuartal 2", amount: 45000000, date: "2026-06-22 09:30" },
-    { id: 4, type: "out", category: "Infrastruktur IT", desc: "Pembayaran Server Cloud", amount: 15000000, date: "2026-06-20 14:15" },
-    { id: 5, type: "in", category: "Investasi", desc: "Suntikan Dana Seri A", amount: 2000000000, date: "2026-06-15 11:00" },
-  ]);
+  const [transactions, setTransactions] = useState<TransactionItem[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
   const [txModalOpen, setTxModalOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [txForm, setTxForm] = useState({
     date: new Date().toISOString().substring(0, 10),
     type: "out" as "in" | "out",
@@ -51,7 +67,75 @@ export default function EnterpriseFinancePage() {
     amount: ""
   });
 
-  // Logic for transactions
+  // Resolve active Business ID
+  useEffect(() => {
+    async function initBusinessId() {
+      const user = getStoredUser();
+      if (user?.business_id) {
+        setBusinessId(user.business_id);
+        return;
+      }
+      try {
+        const businesses = await apiClient.get<any[]>("/business");
+        if (businesses && businesses.length > 0) {
+          setBusinessId(businesses[0].id);
+        }
+      } catch (err) {
+        console.warn("Could not load business context, setting default ID:", err);
+      }
+    }
+    initBusinessId();
+  }, []);
+
+  // Fetch Analytics & HQ Transactions
+  const fetchFinanceData = useCallback(async () => {
+    if (!businessId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      // 1. Fetch Analytics
+      const analyticsRes = await apiClient.get<AnalyticsData>(`/analytics/enterprise/finance?business_id=${businessId}`);
+      setAnalytics(analyticsRes);
+
+      // 2. Fetch HQ Transactions
+      const rawTxs = await apiClient.get<any[]>(`/wallets/business/${businessId}/transactions?type=${txFilter}&search=${encodeURIComponent(txSearch)}`);
+      
+      const mappedTxs: TransactionItem[] = (rawTxs || []).map((t) => {
+        const isCredit = t.type === "credit";
+        const d = t.transaction_date ? new Date(t.transaction_date) : new Date(t.created_at);
+        const dateStr = d.toLocaleDateString("id-ID", { year: "numeric", month: "2-digit", day: "2-digit" }) + " " + d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+        return {
+          id: t.id,
+          type: isCredit ? "in" : "out",
+          category: t.category ?? (isCredit ? "Pemasukan Pusat" : "Pengeluaran Pusat"),
+          desc: t.note || (isCredit ? "Pemasukan Pusat HQ" : "Pengeluaran HQ"),
+          amount: Math.abs(t.amount),
+          date: dateStr,
+        };
+      });
+
+      setTransactions(mappedTxs);
+    } catch (err) {
+      console.warn("Failed to fetch enterprise finance data:", err);
+      setAnalytics({
+        gmv: 0,
+        total_combined_profit: 0,
+        hq_operational_expense: 0,
+        cashflow_monthly: []
+      });
+      setTransactions([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [businessId, txFilter, txSearch]);
+
+  useEffect(() => {
+    fetchFinanceData();
+  }, [fetchFinanceData]);
+
+  // Logic for transaction filtering & pagination
   const filteredTransactions = transactions.filter(trx => {
     const matchesSearch = trx.desc.toLowerCase().includes(txSearch.toLowerCase()) || trx.category.toLowerCase().includes(txSearch.toLowerCase());
     const matchesFilter = txFilter === "all" || trx.type === txFilter;
@@ -61,41 +145,53 @@ export default function EnterpriseFinancePage() {
   const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / itemsPerPage));
   const currentTransactions = filteredTransactions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  const handleTxSubmit = (e: React.FormEvent) => {
+  const handleTxSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!txForm.desc || !txForm.amount) return;
-    
-    const newTx = {
-      id: Date.now(),
-      type: txForm.type,
-      category: txForm.category,
-      desc: txForm.desc,
-      amount: parseInt(txForm.amount),
-      date: txForm.date + " " + new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
-    };
-    
-    setTransactions([newTx, ...transactions]);
-    setTxModalOpen(false);
-    setTxForm({ ...txForm, desc: "", amount: "" });
+    if (!txForm.desc || !txForm.amount || !businessId) return;
+
+    setSubmitting(true);
+    try {
+      await apiClient.post(`/wallets/business/${businessId}/transactions`, {
+        wallet_type: "hq",
+        type: txForm.type === "in" ? "credit" : "debit",
+        category: txForm.category,
+        amount: parseInt(txForm.amount),
+        note: txForm.desc,
+        transaction_date: new Date(txForm.date).toISOString()
+      });
+
+      setTxModalOpen(false);
+      setTxForm({ ...txForm, desc: "", amount: "" });
+      fetchFinanceData();
+    } catch (err: any) {
+      alert(`Gagal menambah transaksi HQ: ${err.message || err}`);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleExport = () => {
     alert("Menyiapkan Laporan Keuangan Terpadu & Metrik Keberlanjutan (SDG)... Memulai unduhan PDF.");
   };
 
-  // Cashflow Macro Data
+  // Cashflow Macro Data formatting: Defaults to 0 if no data
+  const hasCashflowData = analytics?.cashflow_monthly && analytics.cashflow_monthly.length > 0;
+  const chartLabels = hasCashflowData ? analytics.cashflow_monthly.map(c => c.month) : ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun"];
+  const cashInSeries = hasCashflowData ? analytics.cashflow_monthly.map(c => c.cash_in / 1_000_000_000) : [0, 0, 0, 0, 0, 0];
+  const cashOutSeries = hasCashflowData ? analytics.cashflow_monthly.map(c => c.cash_out / 1_000_000_000) : [0, 0, 0, 0, 0, 0];
+
   const cashflowData = {
-    labels: ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun"],
+    labels: chartLabels,
     datasets: [
       {
         label: "Kas Masuk Agregat",
-        data: [1.2, 1.4, 1.3, 1.5, 1.8, 2.1], // in Billions
+        data: cashInSeries,
         backgroundColor: "#10b981",
         borderRadius: 4,
       },
       {
         label: "Kas Keluar (Cabang + HQ)",
-        data: [0.8, 0.9, 0.85, 1.0, 1.2, 1.3], // in Billions
+        data: cashOutSeries,
         backgroundColor: "#f43f5e",
         borderRadius: 4,
       }
@@ -116,12 +212,22 @@ export default function EnterpriseFinancePage() {
     }
   };
 
+  // Format currency display: Shows "..." when loading, "Rp 0" when 0, or formatted value
+  const formatCurrency = (val: number | undefined) => {
+    if (loading) return "Rp ...";
+    if (val === undefined || val === null) return "Rp 0";
+    return "Rp " + val.toLocaleString("id-ID");
+  };
+
   return (
     <div className="space-y-6">
       {/* Header with Title and Export Button */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Keuangan & Cashflow HQ</h1>
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+            Keuangan & Cashflow HQ
+            {loading && <Loader2 className="w-5 h-5 animate-spin text-resurva-dark" />}
+          </h1>
           <p className="text-slate-500 mt-1">Pantau aliran kas makro perusahaan dan transaksi tingkat pusat.</p>
         </div>
         
@@ -143,9 +249,11 @@ export default function EnterpriseFinancePage() {
             <CardTitle className="text-sm font-medium text-slate-500">Gross Merchandise Value (GMV)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-slate-900">Rp 2.140.500.000</div>
-            <div className="flex items-center text-xs text-emerald-600 mt-1 font-semibold">
-              <ArrowUpRight className="w-3 h-3 mr-1" /> +15.2% YTD
+            <div className="text-2xl font-black text-slate-900">
+              {formatCurrency(analytics?.gmv)}
+            </div>
+            <div className="flex items-center text-xs text-slate-400 mt-1 font-semibold">
+              <Activity className="w-3 h-3 mr-1" /> Total Penjualan Agregat
             </div>
           </CardContent>
         </Card>
@@ -157,9 +265,11 @@ export default function EnterpriseFinancePage() {
             <CardTitle className="text-sm font-medium text-slate-500">Total Laba Gabungan Cabang</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-slate-900">Rp 425.200.000</div>
-            <div className="flex items-center text-xs text-emerald-600 mt-1 font-semibold">
-              <ArrowUpRight className="w-3 h-3 mr-1" /> +8.5% YTD
+            <div className="text-2xl font-black text-slate-900">
+              {formatCurrency(analytics?.total_combined_profit)}
+            </div>
+            <div className="flex items-center text-xs text-slate-400 mt-1 font-semibold">
+              <Wallet className="w-3 h-3 mr-1" /> Net Profit Cabang
             </div>
           </CardContent>
         </Card>
@@ -171,9 +281,11 @@ export default function EnterpriseFinancePage() {
             <CardTitle className="text-sm font-medium text-slate-500">Beban Operasional HQ</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-slate-900">Rp 185.000.000</div>
-            <div className="flex items-center text-xs text-rose-600 mt-1 font-semibold">
-              <ArrowDownRight className="w-3 h-3 mr-1" /> -2.1% efisiensi dari bulan lalu
+            <div className="text-2xl font-black text-slate-900">
+              {formatCurrency(analytics?.hq_operational_expense)}
+            </div>
+            <div className="flex items-center text-xs text-slate-400 mt-1 font-semibold">
+              <DollarSign className="w-3 h-3 mr-1" /> Pengeluaran HQ Pusat
             </div>
           </CardContent>
         </Card>
@@ -266,6 +378,13 @@ export default function EnterpriseFinancePage() {
                     </td>
                   </tr>
                 ))}
+                {currentTransactions.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-8 text-center text-slate-400">
+                      {loading ? "Memuat transaksi HQ..." : "Tidak ada transaksi HQ ditemukan."}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -402,8 +521,10 @@ export default function EnterpriseFinancePage() {
                 </button>
                 <button 
                   type="submit"
-                  className="px-8 py-3 rounded-xl font-bold bg-resurva-dark text-white hover:bg-resurva-dark-light transition-colors cursor-pointer shadow-md shadow-resurva-dark/20"
+                  disabled={submitting}
+                  className="px-8 py-3 rounded-xl font-bold bg-resurva-dark text-white hover:bg-resurva-dark-light transition-colors cursor-pointer shadow-md shadow-resurva-dark/20 flex items-center gap-2"
                 >
+                  {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
                   Simpan Transaksi HQ
                 </button>
               </div>

@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Gift, Sparkles, Download, TreePine, Car, Smartphone, Target } from "lucide-react";
+import { Gift, Sparkles, TreePine, Car, Smartphone, Target, Loader2 } from "lucide-react";
 import Link from "next/link";
 import {
   Chart as ChartJS,
@@ -15,6 +15,7 @@ import {
   Legend,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
+import { apiClient, getStoredUser } from "@/lib/api";
 
 ChartJS.register(
   CategoryScale,
@@ -25,49 +26,83 @@ ChartJS.register(
   Legend
 );
 
+interface SustainabilityData {
+  co2e_total: number;
+  target_co2e: number;
+  progress_percent: number;
+  trees_equivalent: number;
+  km_driven_equivalent: number;
+  phone_hours_equivalent: number;
+  monthly_trend: { label: string; co2e: number }[];
+}
+
 export default function SustainabilityPage() {
-  const [co2e, setCo2e] = useState(10600); // Mock value for Enterprise total
+  const [businessId, setBusinessId] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
   const [chartPeriod, setChartPeriod] = useState("6bulan");
+  const [sustData, setSustData] = useState<SustainabilityData | null>(null);
 
-  const targetCo2e = 15000;
-  const progressPercent = Math.min(Math.round((co2e / targetCo2e) * 100), 100);
-
-  // EPA Conversion factors
-  const trees = (co2e * 0.016).toFixed(0);
-  const kmDriven = (co2e * 4.1).toLocaleString("id-ID");
-  const phoneHours = (co2e * 120).toLocaleString("id-ID");
-
-  // Chart data logic based on period
-  const getChartData = () => {
-    switch(chartPeriod) {
-      case "tahun_ini":
-        return {
-          labels: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'],
-          data: [1200, 1900, 3000, 500, 2000, 1000, 1000, 1500, 2200, 1800, 2500, 2800]
-        };
-      case "semua":
-        return {
-          labels: ['2020', '2021', '2022', '2023', '2024'],
-          data: [8000, 15000, 19000, 25000, 21400]
-        };
-      case "6bulan":
-      default:
-        return {
-          labels: ['Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul'],
-          data: [1900, 3000, 500, 2000, 1000, 1000]
-        };
+  // Resolve Business Context
+  useEffect(() => {
+    async function init() {
+      const user = getStoredUser();
+      if (user?.business_id) {
+        setBusinessId(user.business_id);
+      } else {
+        try {
+          const businesses = await apiClient.get<any[]>("/business");
+          if (businesses && businesses.length > 0) {
+            setBusinessId(businesses[0].id);
+          }
+        } catch (err) {
+          console.warn("Failed to load business context:", err);
+        }
+      }
     }
-  };
+    init();
+  }, []);
 
-  const currentChartData = getChartData();
+  // Fetch Sustainability Data
+  const fetchSustainability = useCallback(async () => {
+    if (!businessId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await apiClient.get<SustainabilityData>(
+        `/analytics/enterprise/sustainability?business_id=${businessId}&period=${chartPeriod}`
+      );
+      setSustData(res);
+    } catch (err) {
+      console.warn("Error fetching sustainability analytics:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [businessId, chartPeriod]);
+
+  useEffect(() => {
+    fetchSustainability();
+  }, [fetchSustainability]);
+
+  const co2e = sustData?.co2e_total || 0;
+  const targetCo2e = sustData?.target_co2e || 15000;
+  const progressPercent = sustData?.progress_percent || 0;
+
+  const trees = (sustData?.trees_equivalent || 0).toLocaleString("id-ID");
+  const kmDriven = (sustData?.km_driven_equivalent || 0).toLocaleString("id-ID");
+  const phoneHours = (sustData?.phone_hours_equivalent || 0).toLocaleString("id-ID");
+
+  const trendLabels = sustData?.monthly_trend?.map(t => t.label) || ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun'];
+  const trendValues = sustData?.monthly_trend?.map(t => t.co2e) || [0, 0, 0, 0, 0, 0];
 
   const chartData = {
-    labels: currentChartData.labels,
+    labels: trendLabels,
     datasets: [
       {
         label: 'Reduksi CO₂e (Kg)',
-        data: currentChartData.data,
-        backgroundColor: 'rgba(16, 185, 129, 0.9)', // emerald-500
+        data: trendValues,
+        backgroundColor: 'rgba(16, 185, 129, 0.9)',
         borderRadius: 4,
       },
     ],
@@ -77,9 +112,7 @@ export default function SustainabilityPage() {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: {
-        display: false,
-      },
+      legend: { display: false },
       tooltip: {
         backgroundColor: '#0f172a',
         padding: 12,
@@ -90,15 +123,11 @@ export default function SustainabilityPage() {
     scales: {
       y: {
         beginAtZero: true,
-        grid: {
-          color: '#f1f5f9',
-        },
+        grid: { color: '#f1f5f9' },
         border: { display: false }
       },
       x: {
-        grid: {
-          display: false,
-        },
+        grid: { display: false },
         border: { display: false }
       }
     }
@@ -108,7 +137,10 @@ export default function SustainabilityPage() {
     <div className="space-y-8 pb-10">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-800">Laporan Keberlanjutan (SDG)</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-800 flex items-center gap-2">
+            Laporan Keberlanjutan (SDG)
+            {loading && <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />}
+          </h2>
           <p className="text-slate-500 mt-1">
             Memantau kontribusi perusahaan terhadap Tujuan Pembangunan Berkelanjutan (SDG 9 & 17).
           </p>
@@ -132,7 +164,7 @@ export default function SustainabilityPage() {
             </p>
             <div className="pt-2">
               <Link href="/wrapped" target="_blank">
-                <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-full px-8 shadow-sm transition-all hover:shadow">
+                <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-full px-8 shadow-sm transition-all hover:shadow cursor-pointer">
                   Buka Wrapped Sekarang
                 </Button>
               </Link>
@@ -149,7 +181,6 @@ export default function SustainabilityPage() {
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
         {/* Total CO2e & Target */}
         <div className="lg:col-span-5 bg-gradient-to-br from-emerald-800 to-teal-900 rounded-2xl p-8 text-white shadow-md relative overflow-hidden flex flex-col">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
@@ -184,7 +215,7 @@ export default function SustainabilityPage() {
               <p className="text-sm text-slate-500">Pergerakan Kg CO₂e terhindari</p>
             </div>
             <select 
-               className="h-9 w-[160px] rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+               className="h-9 w-[160px] rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
                value={chartPeriod}
                onChange={e => setChartPeriod(e.target.value)}
              >
@@ -197,7 +228,6 @@ export default function SustainabilityPage() {
              <Bar data={chartData} options={chartOptions as any} />
           </div>
         </div>
-        
       </div>
 
       <div>

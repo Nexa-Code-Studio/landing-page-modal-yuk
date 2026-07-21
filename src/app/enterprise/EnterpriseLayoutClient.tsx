@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { SharedSidebar, MenuItem, ProfileInfo } from "@/components/layout/SharedSidebar";
 import { SharedHeader } from "@/components/layout/SharedHeader";
+import { apiClient, getStoredUser } from "@/lib/api";
 
 const enterpriseMenus: MenuItem[] = [
   { name: "Waste Analytics", href: "/enterprise/analytics" },
@@ -15,7 +16,7 @@ const enterpriseMenus: MenuItem[] = [
   { name: "Chat AI", href: "/enterprise/chat" },
 ];
 
-const enterpriseProfile: ProfileInfo = {
+const defaultProfile: ProfileInfo = {
   name: "PT Resurva Group",
   subtext: "Pusat Manajemen",
   initials: "HQ",
@@ -38,6 +39,38 @@ export default function EnterpriseLayoutClient({
 }) {
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [profile, setProfile] = useState<ProfileInfo>(defaultProfile);
+
+  useEffect(() => {
+    async function loadSidebarProfile() {
+      const user = getStoredUser();
+      let bId = user?.business_id;
+      if (!bId) {
+        try {
+          const bs = await apiClient.get<any[]>("/business");
+          if (bs && bs.length > 0) bId = bs[0].id;
+        } catch (e) {}
+      }
+      if (bId) {
+        try {
+          const b = await apiClient.get<any>(`/business/${bId}`);
+          if (b && b.name) {
+            const name = b.name;
+            const parts = name.trim().split(/\s+/);
+            const initials = parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : name.slice(0, 2).toUpperCase();
+            setProfile({
+              name: name,
+              subtext: b.legal_entity || "Pusat Manajemen",
+              initials: initials,
+            });
+          }
+        } catch (err) {
+          console.warn("Failed to load enterprise sidebar profile:", err);
+        }
+      }
+    }
+    loadSidebarProfile();
+  }, []);
 
   useEffect(() => {
     if (window.innerWidth >= 768) {
@@ -63,7 +96,7 @@ export default function EnterpriseLayoutClient({
       <SharedSidebar 
         roleName="Enterprise" 
         menus={enterpriseMenus} 
-        profile={enterpriseProfile} 
+        profile={profile} 
         isOpen={isSidebarOpen}
       />
       <div className="flex-1 flex flex-col min-w-0">
