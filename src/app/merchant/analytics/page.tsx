@@ -19,9 +19,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useMerchantContext } from "@/lib/contexts/MerchantContext";
 import { apiClient } from "@/lib/api";
 import { 
-  Sparkles, MessageSquare, Send, X, Bot, RefreshCw, ChevronLeft, ChevronRight,
+  Sparkles, MessageSquare, Send, X, Bot, RefreshCw, ChevronLeft, ChevronRight, ChevronDown, Filter,
   Wallet, TrendingUp, PieChart, Activity, ArrowUpRight, ArrowDownRight, DollarSign, List, BadgeDollarSign, Plus, Search,
-  AlertTriangle, Package, ShieldCheck, ArrowRight, Layers, ShoppingCart, Info, Percent, Tag, CheckCircle2, BarChart3
+  AlertTriangle, Package, ShieldCheck, ArrowRight, Layers, ShoppingCart, Info, Percent, Tag, CheckCircle2, BarChart3, Star
 } from "lucide-react";
 
 ChartJS.register(
@@ -48,6 +48,7 @@ const TRANSLATIONS = {
     description: "Manage your cashflow, monitor sales trends, and get AI business insights.",
     tabFinance: "Finance & Cashflow",
     tabSales: "Sales Trends",
+    tabReviews: "Reviews",
     tabAI: "AI Insights",
     netProfit: "Net Profit",
     totalRevenue: "Total Revenue",
@@ -62,6 +63,8 @@ const TRANSLATIONS = {
     insight1Desc: "Based on weekly trends, bakery items experience a 15% demand drop on Mondays. We recommend reducing the morning prep batch size for Chocolate Bread by 15% next Monday.",
     insight2Title: "Surplus Conversion Rate",
     insight2Desc: "Your surplus conversion is at 84%, which is excellent. You saved 12.5 kg of food waste this week, resulting in an additional Rp 320,000 in recovery revenue.",
+    insight3Title: "Customer Sentiment Summary",
+    insight3Desc: "Overall customer sentiment is very positive. They love your Chocolate Bread. Consider increasing the initial stock for this product.",
     chatWelcome: "Hello! I am your AI Business Assistant. Ask me anything about your sales performance, inventory expiry tracking, or how to reduce food surplus waste.",
     chatInputPlaceholder: "Ask the AI assistant...",
     send: "Send",
@@ -95,6 +98,7 @@ const TRANSLATIONS = {
     description: "Kelola arus kas, pantau tren penjualan, dan dapatkan wawasan bisnis dari AI.",
     tabFinance: "Keuangan & Cashflow",
     tabSales: "Tren Penjualan",
+    tabReviews: "Ulasan Pelanggan",
     tabAI: "AI Insights",
     netProfit: "Laba Bersih",
     totalRevenue: "Pendapatan Total",
@@ -109,6 +113,8 @@ const TRANSLATIONS = {
     insight1Desc: "Berdasarkan tren mingguan, produk bakery mengalami penurunan permintaan sebesar 15% pada hari Senin. Direkomendasikan untuk mengurangi volume produksi Roti Cokelat sebanyak 15% pada Senin depan.",
     insight2Title: "Tingkat Konversi Produk Surplus",
     insight2Desc: "Konversi surplus toko Anda berada di angka 84% (Sangat Baik). Anda menyelamatkan 12.5 kg makanan minggu ini, menghasilkan tambahan pemulihan pendapatan sebesar Rp 320.000.",
+    insight3Title: "Ringkasan Sentimen Pelanggan",
+    insight3Desc: "Secara keseluruhan, sentimen pelanggan sangat positif. Mereka menyukai Roti Cokelat Anda. Pertimbangkan untuk meningkatkan stok awal untuk produk ini.",
     chatWelcome: "Halo! Saya AI Business Assistant Anda. Tanyakan apa saja tentang kinerja penjualan, pemantauan tanggal kedaluwarsa, atau cara mengurangi limbah surplus makanan.",
     chatInputPlaceholder: "Tanya asisten AI...",
     send: "Kirim",
@@ -142,7 +148,7 @@ const TRANSLATIONS = {
 export default function StoreAnalyticsPage() {
   const { storeId } = useMerchantContext();
   const [lang, setLang] = useState<"en" | "id">("en");
-  const [activeTab, setActiveTab] = useState<"finance" | "sales" | "ai">("finance");
+  const [activeTab, setActiveTab] = useState<"finance" | "sales" | "reviews" | "ai">("finance");
   
   // Charts state
   const [timeFrame, setTimeFrame] = useState<"weekly" | "monthly">("weekly");
@@ -151,6 +157,10 @@ export default function StoreAnalyticsPage() {
   // Transactions State
   const [txSearch, setTxSearch] = useState("");
   const [txFilter, setTxFilter] = useState<"in" | "out">("in");
+
+  // Reviews State
+  const [reviewSearch, setReviewSearch] = useState("");
+  const [reviewFilter, setReviewFilter] = useState<"all" | "5" | "4" | "3" | "2" | "1">("all");
 
   // Backend Live State
   const [financialData, setFinancialData] = useState<{
@@ -963,6 +973,108 @@ export default function StoreAnalyticsPage() {
     </div>
   );
 
+  const mockReviews = [
+    { id: 1, customer: "Budi Santoso", rating: 5, date: "21 Jul 2026", comment: "Roti cokelatnya masih sangat enak walaupun beli saat surplus. Teksturnya lembut dan harganya sangat bersahabat!", product: "Roti Cokelat" },
+    { id: 2, customer: "Siti Rahma", rating: 4, date: "20 Jul 2026", comment: "Pelayanannya ramah dan proses pick-up sangat cepat. Kualitas makanan masih terjamin.", product: "Paket Bundling Surplus" },
+    { id: 3, customer: "Andi Saputra", rating: 5, date: "19 Jul 2026", comment: "Inisiatif yang sangat bagus untuk mengurangi limbah makanan. Makanan beratnya mengenyangkan dan rasanya tidak berubah.", product: "Nasi Goreng Spesial" },
+    { id: 4, customer: "Dewi Lestari", rating: 3, date: "18 Jul 2026", comment: "Rotinya agak sedikit keras, tapi masih layak konsumsi. Sesuai dengan harganya yang diskon.", product: "Roti Tawar" },
+  ];
+
+  const renderReviewsTab = () => {
+    const filteredReviews = mockReviews.filter((r) => {
+      const matchesSearch = r.customer.toLowerCase().includes(reviewSearch.toLowerCase()) || r.product.toLowerCase().includes(reviewSearch.toLowerCase());
+      const matchesFilter = reviewFilter === "all" || r.rating.toString() === reviewFilter;
+      return matchesSearch && matchesFilter;
+    });
+
+    return (
+      <div className="space-y-6 animate-in fade-in duration-500">
+        
+        {/* AI Insights Section for Reviews */}
+        <Card className="border-slate-200/60 shadow-sm relative overflow-hidden bg-gradient-to-br from-blue-50/30 via-white to-white border-l-4 border-l-blue-600">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+              <Bot className="w-4 h-4 text-blue-600" />
+              {t.insight3Title}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-slate-600 text-sm leading-relaxed">{t.insight3Desc}</p>
+          </CardContent>
+        </Card>
+
+        {/* Reviews List */}
+        <Card className="border-slate-200/60 shadow-sm overflow-hidden bg-white">
+          <CardHeader className="border-b border-slate-100/80 bg-slate-50/50 pb-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <CardTitle className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-resurva-dark" />
+                Daftar Ulasan Pelanggan
+              </CardTitle>
+              
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input 
+                    type="text" 
+                    placeholder="Cari pelanggan/produk..."
+                    value={reviewSearch}
+                    onChange={(e) => setReviewSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-resurva-dark focus:ring-1 focus:ring-resurva-dark"
+                  />
+                </div>
+                <div className="relative min-w-[150px]">
+                  <Filter className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 z-10" />
+                  <select
+                    value={reviewFilter}
+                    onChange={(e) => setReviewFilter(e.target.value as any)}
+                    className="w-full pl-9 pr-8 py-2 text-sm border border-slate-200 rounded-xl appearance-none bg-white focus:outline-none focus:border-resurva-dark focus:ring-1 focus:ring-resurva-dark cursor-pointer relative"
+                  >
+                    <option value="all">Semua Bintang</option>
+                    <option value="5">⭐⭐⭐⭐⭐ (5)</option>
+                    <option value="4">⭐⭐⭐⭐ (4)</option>
+                    <option value="3">⭐⭐⭐ (3)</option>
+                    <option value="2">⭐⭐ (2)</option>
+                    <option value="1">⭐ (1)</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+                    <ChevronDown className="w-4 h-4" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-slate-100">
+              {filteredReviews.length > 0 ? filteredReviews.map((review) => (
+                <div key={review.id} className="p-6 hover:bg-slate-50/50 transition-colors">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h4 className="font-bold text-slate-800">{review.customer}</h4>
+                      <p className="text-xs text-slate-500">{review.date} • {review.product}</p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} className={`w-4 h-4 ${i < review.rating ? "text-amber-400 fill-amber-400" : "text-slate-200 fill-slate-200"}`} />
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-600 mt-3">{review.comment}</p>
+                </div>
+              )) : (
+                <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center">
+                  <Search className="w-8 h-8 text-slate-300 mb-3" />
+                  <p className="font-medium">Tidak ada ulasan yang sesuai kriteria.</p>
+                  <p className="text-sm mt-1">Coba sesuaikan kata kunci pencarian atau filter rating.</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6 p-4 md:p-8 min-h-screen relative bg-slate-50">
       {/* Header */}
@@ -991,12 +1103,21 @@ export default function StoreAnalyticsPage() {
         >
           <PieChart className="w-4 h-4" /> {t.tabSales}
         </button>
+        <button
+          onClick={() => setActiveTab("reviews")}
+          className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === "reviews" ? "bg-resurva-dark text-white shadow-md" : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+          }`}
+        >
+          <Star className="w-4 h-4" /> {t.tabReviews}
+        </button>
       </div>
 
       {/* Tab Content Area */}
       <div className="mt-6">
         {activeTab === "finance" && renderFinanceTab()}
         {activeTab === "sales" && renderSalesTab()}
+        {activeTab === "reviews" && renderReviewsTab()}
       </div>
 
       {/* Add Transaction Modal */}
