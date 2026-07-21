@@ -77,12 +77,8 @@ jobs:
             NEXT_PUBLIC_API_URL=https://api.resurva.my.id/api/v1 npm run build
 
             echo "--- Restart service resurva-frontend ---"
-            (pm2 restart resurva-frontend 2>/dev/null || sudo -n systemctl restart resurva-frontend 2>/dev/null || true)
-
-            sleep 3
-
-            echo "--- Verifikasi deployment ---"
-            echo "Deploy frontend selesai."
+            chmod +x scripts/deploy_restart.sh
+            sudo ./scripts/deploy_restart.sh
           ENDSSH
 
           echo "deploy_log<<EOF" >> $GITHUB_OUTPUT
