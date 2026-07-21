@@ -21,7 +21,7 @@ import { apiClient } from "@/lib/api";
 import { 
   Sparkles, MessageSquare, Send, X, Bot, RefreshCw, ChevronLeft, ChevronRight, ChevronDown, Filter,
   Wallet, TrendingUp, PieChart, Activity, ArrowUpRight, ArrowDownRight, DollarSign, List, BadgeDollarSign, Plus, Search,
-  AlertTriangle, Package, ShieldCheck, ArrowRight, Layers, ShoppingCart, Info, Percent, Tag, CheckCircle2, BarChart3, Star
+  AlertTriangle, Package, ShieldCheck, ArrowRight, Layers, ShoppingCart, Info, Percent, Tag, CheckCircle2, BarChart3, Star, Play
 } from "lucide-react";
 
 ChartJS.register(
@@ -196,6 +196,22 @@ export default function StoreAnalyticsPage() {
     status: string;
   }>>([]);
 
+  interface ReviewItem {
+    id: string;
+    customer: string;
+    customer_avatar?: string;
+    rating: number;
+    date: string;
+    comment: string;
+    product: string;
+    attachments?: string[];
+  }
+
+  const [reviews, setReviews] = useState<ReviewItem[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [reviewsSummary, setReviewsSummary] = useState<{ summary: string; avgRating: number; totalReviews: number } | null>(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+
   // Loading states
   const [loadingFinance, setLoadingFinance] = useState(false);
   const [loadingSales, setLoadingSales] = useState(false);
@@ -262,6 +278,63 @@ export default function StoreAnalyticsPage() {
       }
     };
     fetchRecommendations();
+  }, [storeId]);
+
+  // Fetch live reviews and summary
+  useEffect(() => {
+    if (!storeId) return;
+    const fetchReviewsData = async () => {
+      setLoadingReviews(true);
+      try {
+        const res = await apiClient.get<any>(
+          `/reviews/?store_id=${storeId}&page_size=100`
+        );
+        if (res && res.items) {
+          const mappedReviews = res.items.map((r: any) => ({
+            id: r.id,
+            customer: r.customer_name || "Pelanggan",
+            customer_avatar: r.customer_avatar || undefined,
+            rating: r.rating,
+            date: new Date(r.created_at).toLocaleDateString("id-ID", {
+              day: "numeric",
+              month: "short",
+              year: "numeric"
+            }),
+            comment: r.description,
+            product: r.product_name || "Toko (General)",
+            attachments: r.attachments || []
+          }));
+          setReviews(mappedReviews);
+        }
+      } catch (err) {
+        console.error("Failed to fetch store reviews:", err);
+      } finally {
+        setLoadingReviews(false);
+      }
+    };
+
+    const fetchSummary = async () => {
+      setLoadingSummary(true);
+      try {
+        const res = await apiClient.get<any>(
+          `/reviews/summary?store_id=${storeId}`
+        );
+        if (res) {
+          setReviewsSummary({
+            summary: res.summary,
+            avgRating: res.avg_rating,
+            totalReviews: res.total_reviews
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch reviews summary:", err);
+      } finally {
+        setLoadingSummary(false);
+      }
+    };
+
+    fetchReviewsData();
+    fetchSummary();
   }, [storeId]);
 
   // Chat state
@@ -957,16 +1030,9 @@ export default function StoreAnalyticsPage() {
     </div>
   );
 
-  const mockReviews = [
-    { id: 1, customer: "Budi Santoso", rating: 5, date: "21 Jul 2026", comment: "Roti cokelatnya masih sangat enak walaupun beli saat surplus. Teksturnya lembut dan harganya sangat bersahabat!", product: "Roti Cokelat" },
-    { id: 2, customer: "Siti Rahma", rating: 4, date: "20 Jul 2026", comment: "Pelayanannya ramah dan proses pick-up sangat cepat. Kualitas makanan masih terjamin.", product: "Paket Bundling Surplus" },
-    { id: 3, customer: "Andi Saputra", rating: 5, date: "19 Jul 2026", comment: "Inisiatif yang sangat bagus untuk mengurangi limbah makanan. Makanan beratnya mengenyangkan dan rasanya tidak berubah.", product: "Nasi Goreng Spesial" },
-    { id: 4, customer: "Dewi Lestari", rating: 3, date: "18 Jul 2026", comment: "Rotinya agak sedikit keras, tapi masih layak konsumsi. Sesuai dengan harganya yang diskon.", product: "Roti Tawar" },
-  ];
-
   const renderReviewsTab = () => {
-    const filteredReviews = mockReviews.filter((r) => {
-      const matchesSearch = r.customer.toLowerCase().includes(reviewSearch.toLowerCase()) || r.product.toLowerCase().includes(reviewSearch.toLowerCase());
+    const filteredReviews = reviews.filter((r) => {
+      const matchesSearch = r.customer.toLowerCase().includes(reviewSearch.toLowerCase()) || r.product.toLowerCase().includes(reviewSearch.toLowerCase()) || r.comment.toLowerCase().includes(reviewSearch.toLowerCase());
       const matchesFilter = reviewFilter === "all" || r.rating.toString() === reviewFilter;
       return matchesSearch && matchesFilter;
     });
@@ -983,7 +1049,14 @@ export default function StoreAnalyticsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-slate-600 text-sm leading-relaxed">{t.insight3Desc}</p>
+            {loadingSummary ? (
+              <div className="space-y-2 animate-pulse py-2">
+                <div className="h-4 bg-blue-100/50 rounded-full w-5/6"></div>
+                <div className="h-4 bg-blue-100/50 rounded-full w-4/6"></div>
+              </div>
+            ) : (
+              <p className="text-slate-600 text-sm leading-relaxed">{reviewsSummary ? reviewsSummary.summary : t.insight3Desc}</p>
+            )}
           </CardContent>
         </Card>
 
@@ -991,9 +1064,15 @@ export default function StoreAnalyticsPage() {
         <Card className="border-slate-200/60 shadow-sm overflow-hidden bg-white">
           <CardHeader className="border-b border-slate-100/80 bg-slate-50/50 pb-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <CardTitle className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <CardTitle className="text-lg font-bold text-slate-800 flex items-center gap-2 flex-wrap">
                 <MessageSquare className="w-5 h-5 text-resurva-dark" />
                 Daftar Ulasan Pelanggan
+                {reviewsSummary && reviewsSummary.totalReviews > 0 && (
+                  <span className="text-sm font-semibold bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full flex items-center gap-1 ml-2">
+                    <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                    {reviewsSummary.avgRating} ({reviewsSummary.totalReviews} Ulasan)
+                  </span>
+                )}
               </CardTitle>
               
               <div className="flex flex-col sm:flex-row items-center gap-3">
@@ -1030,20 +1109,76 @@ export default function StoreAnalyticsPage() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-slate-100">
-              {filteredReviews.length > 0 ? filteredReviews.map((review) => (
+              {loadingReviews ? (
+                <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center">
+                  <RefreshCw className="w-8 h-8 animate-spin text-resurva-dark mb-3" />
+                  <p className="font-medium">Memuat ulasan pelanggan...</p>
+                </div>
+              ) : filteredReviews.length > 0 ? filteredReviews.map((review) => (
                 <div key={review.id} className="p-6 hover:bg-slate-50/50 transition-colors">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h4 className="font-bold text-slate-800">{review.customer}</h4>
-                      <p className="text-xs text-slate-500">{review.date} • {review.product}</p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {[...Array(5)].map((_, i) => (
-                        <Star key={i} className={`w-4 h-4 ${i < review.rating ? "text-amber-400 fill-amber-400" : "text-slate-200 fill-slate-200"}`} />
-                      ))}
+                  <div className="flex items-start gap-4">
+                    {/* User Avatar */}
+                    {review.customer_avatar ? (
+                      <img 
+                        src={review.customer_avatar} 
+                        alt={review.customer} 
+                        className="w-10 h-10 rounded-full object-cover border border-slate-150 shadow-sm"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold border border-slate-200 shadow-sm text-xs">
+                        {review.customer.substring(0, 2).toUpperCase()}
+                      </div>
+                    )}
+
+                    <div className="flex-1">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h4 className="font-bold text-slate-800">{review.customer}</h4>
+                          <p className="text-xs text-slate-500">{review.date} • {review.product}</p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {[...Array(5)].map((_, i) => (
+                            <Star key={i} className={`w-4 h-4 ${i < review.rating ? "text-amber-400 fill-amber-400" : "text-slate-200 fill-slate-200"}`} />
+                          ))}
+                        </div>
+                      </div>
+                      <p className="text-sm text-slate-600 mt-2">{review.comment}</p>
+
+                      {/* Attachments (Image/Video) */}
+                      {review.attachments && review.attachments.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-4">
+                          {review.attachments.map((url, idx) => {
+                            const isVideo = url.endsWith(".mp4") || url.endsWith(".mov") || url.endsWith(".webm");
+                            return (
+                              <a 
+                                key={idx} 
+                                href={url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="relative w-20 h-20 rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-slate-50 group cursor-pointer"
+                              >
+                                {isVideo ? (
+                                  <div className="w-full h-full relative">
+                                    <video src={url} className="w-full h-full object-cover" preload="metadata" muted />
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                      <div className="w-6 h-6 rounded-full bg-white/80 flex items-center justify-center text-slate-800 shadow-sm">
+                                        <Play className="w-3.5 h-3.5 text-resurva-dark" />
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <img src={url} alt="Attachment" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                                )}
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <span className="text-[10px] text-white font-medium">Lihat</span>
+                                </div>
+                              </a>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <p className="text-sm text-slate-600 mt-3">{review.comment}</p>
                 </div>
               )) : (
                 <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center">
