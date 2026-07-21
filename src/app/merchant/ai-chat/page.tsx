@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Send, Bot, User, MessageSquare, Plus, Wrench, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { marked } from "marked";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+
 
 interface ChatMessage {
   id: string;
@@ -158,8 +160,10 @@ export default function MerchantAIChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sidebarContainerRef = useRef<HTMLDivElement>(null);
   
-  // Language settings (default to Indonesian)
-  const [lang, setLang] = useState<"en" | "id">("id");
+  // Language settings
+  const { lang } = useLanguage();
+
+
 
   // SSR-safe Mermaid Initialization
   const [isMermaidInitialized, setIsMermaidInitialized] = useState(false);
@@ -194,13 +198,7 @@ export default function MerchantAIChatPage() {
     return () => clearTimeout(timer);
   }, [messages, isMermaidInitialized]);
 
-  // Load language preference from localStorage
-  useEffect(() => {
-    const savedLang = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
-    if (savedLang) {
-      setLang(savedLang);
-    }
-  }, []);
+
 
   // Fetch initial conversations on page mount
   useEffect(() => {
@@ -492,13 +490,14 @@ export default function MerchantAIChatPage() {
           border: 1px solid #e2e8f0;
         }
         .markdown-content th {
-          background: #f8fafc;
-          color: #334155;
-          font-weight: 600;
+          background: #0F3D2E;
+          color: #ffffff;
+          font-weight: 700;
           padding: 10px 14px;
           text-align: left;
-          border-bottom: 2px solid #e2e8f0;
+          border-bottom: 2px solid #0b2e22;
         }
+
         .markdown-content td {
           padding: 10px 14px;
           border-bottom: 1px solid #f1f5f9;

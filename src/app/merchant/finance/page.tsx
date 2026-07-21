@@ -275,10 +275,13 @@ const DEFAULT_MANUAL_TX: CustomTransaction[] = [
   }
 ];
 
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+
 export default function FinancePage() {
   const { storeId, orders } = useMerchantContext();
-  const [lang, setLang] = useState<"en" | "id">("en");
+  const { lang } = useLanguage();
   const [balances, setBalances] = useState({ digital: 0, offline: 0 });
+
   const [transactions, setTransactions] = useState<CustomTransaction[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -315,25 +318,7 @@ export default function FinancePage() {
 
   const [selectedTxDetails, setSelectedTxDetails] = useState<CustomTransaction | null>(null);
 
-  // Toggle Language Handler
-  useEffect(() => {
-    const savedLang = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
-    if (savedLang) {
-      setLang(savedLang);
-    } else {
-      const systemLang = navigator.language.startsWith("id") ? "id" : "en";
-      setLang(systemLang);
-    }
 
-    const handleLangChange = () => {
-      const currentSaved = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
-      if (currentSaved) {
-        setLang(currentSaved);
-      }
-    };
-    window.addEventListener("languageChange", handleLangChange);
-    return () => window.removeEventListener("languageChange", handleLangChange);
-  }, []);
 
   const t = TRANSLATIONS[lang];
 

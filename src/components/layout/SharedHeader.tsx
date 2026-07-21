@@ -3,6 +3,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { Bell, Package, AlertTriangle, Truck, Menu } from "lucide-react";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+
 
 const TRANSLATIONS = {
   en: {
@@ -45,38 +47,7 @@ export function SharedHeader({ pageTitleMapping, defaultTitle, onToggleSidebar }
   const pathname = usePathname();
   const [showNotifications, setShowNotifications] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [lang, setLang] = useState<"en" | "id">("en");
-
-  // Load language preference from localStorage
-  useEffect(() => {
-    const savedLang = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
-    if (savedLang) {
-      setLang(savedLang);
-    } else {
-      const systemLang = navigator.language.startsWith("id") ? "id" : "en";
-      setLang(systemLang);
-    }
-  }, []);
-
-  // Listen to external language changes (e.g. from other page headers or actions)
-  useEffect(() => {
-    const handleLangChange = () => {
-      const currentSaved = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
-      if (currentSaved && currentSaved !== lang) {
-        setLang(currentSaved);
-      }
-    };
-    window.addEventListener("languageChange", handleLangChange);
-    return () => window.removeEventListener("languageChange", handleLangChange);
-  }, [lang]);
-
-  const toggleLanguage = () => {
-    const newLang = lang === "en" ? "id" : "en";
-    setLang(newLang);
-    localStorage.setItem("preferredLanguage", newLang);
-    // Dispatch a custom event to notify other components (e.g. sidebar or page content)
-    window.dispatchEvent(new Event("languageChange"));
-  };
+  const { lang, toggleLanguage } = useLanguage();
 
   const t = TRANSLATIONS[lang];
 

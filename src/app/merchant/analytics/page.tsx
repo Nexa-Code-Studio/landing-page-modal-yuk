@@ -139,10 +139,13 @@ const TRANSLATIONS = {
   }
 };
 
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+
 export default function StoreAnalyticsPage() {
   const { storeId } = useMerchantContext();
-  const [lang, setLang] = useState<"en" | "id">("en");
+  const { lang } = useLanguage();
   const [activeTab, setActiveTab] = useState<"finance" | "sales" | "ai">("finance");
+
   
   // Charts state
   const [timeFrame, setTimeFrame] = useState<"weekly" | "monthly">("weekly");
@@ -283,25 +286,7 @@ export default function StoreAnalyticsPage() {
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Load language preference
-  useEffect(() => {
-    const savedLang = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
-    if (savedLang) {
-      setLang(savedLang);
-    } else {
-      const systemLang = navigator.language.startsWith("id") ? "id" : "en";
-      setLang(systemLang);
-    }
 
-    const handleLangChange = () => {
-      const currentSaved = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
-      if (currentSaved) {
-        setLang(currentSaved);
-      }
-    };
-    window.addEventListener("languageChange", handleLangChange);
-    return () => window.removeEventListener("languageChange", handleLangChange);
-  }, []);
 
   const t = TRANSLATIONS[lang];
 

@@ -1,22 +1,69 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Store, CheckCircle, XCircle, Eye, X, Building2, MapPin, FileText } from "lucide-react";
+import { Store, CheckCircle, XCircle, Eye, X, Building2, MapPin, FileText, Loader2 } from "lucide-react";
+import { apiClient } from "@/lib/api";
+
+const getAbsoluteDocUrl = (url: string) => {
+  if (!url) return "#";
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url;
+  }
+  return `http://localhost:9000/resurva-bucket/stores/${url}`;
+};
+
+const getDocLabel = (url: string, index: number, type: "merchant" | "enterprise") => {
+  const lowerUrl = url.toLowerCase();
+  if (lowerUrl.includes("ktp")) return "KTP Pemilik";
+  if (lowerUrl.includes("akta")) return "Akta Pendirian PT";
+  if (lowerUrl.includes("npwp")) return "NPWP Perusahaan";
+  if (lowerUrl.includes("nib")) {
+    return type === "merchant" ? "NIB Toko" : "NIB Perusahaan";
+  }
+  if (type === "merchant") {
+    return index === 0 ? "KTP Pemilik" : "NIB Toko";
+  } else {
+    if (index === 0) return "Akta Pendirian PT";
+    if (index === 1) return "NIB Perusahaan";
+    return "NPWP Perusahaan";
+  }
+};
 
 export default function MerchantVerificationPage() {
-  const [verifications, setVerifications] = useState([
-    { id: 1, name: "Kopi Senja", owner: "Budi Santoso", location: "Jakarta Selatan", type: "F&B", date: "2026-07-10", status: "Pending" },
-    { id: 2, name: "Toko Roti Berkah", owner: "Siti Aminah", location: "Bandung", type: "Bakery", date: "2026-07-11", status: "Pending" },
-    { id: 3, name: "Warung Nasi Cepat", owner: "Andi Saputra", location: "Surabaya", type: "F&B", date: "2026-07-12", status: "Pending" },
-  ]);
-
+  const [verifications, setVerifications] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedMerchant, setSelectedMerchant] = useState<any>(null);
 
-  const handleAction = (id: number, action: "Approve" | "Reject") => {
-    if (confirm(`Apakah Anda yakin ingin ${action === "Approve" ? "menyetujui" : "menolak"} pendaftaran merchant ini?`)) {
-      setVerifications(verifications.filter(v => v.id !== id));
-      setSelectedMerchant(null);
+  const fetchVerifications = async () => {
+    setLoading(true);
+    try {
+      const data = await apiClient.get<any[]>("/verifications/?partner_type=MERCHANT&status_filter=PENDING");
+      setVerifications(data || []);
+    } catch (err) {
+      console.error("Gagal mengambil data verifikasi merchant:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchVerifications();
+  }, []);
+
+  const handleAction = async (id: string, action: "Approve" | "Reject") => {
+    const actionText = action === "Approve" ? "menyetujui" : "menolak";
+    if (confirm(`Apakah Anda yakin ingin ${actionText} pendaftaran merchant ini?`)) {
+      try {
+        await apiClient.patch(`/verifications/${id}/status`, {
+          status: action === "Approve" ? "APPROVED" : "REJECTED",
+          rejection_reason: action === "Reject" ? "Dokumen kurang lengkap atau tidak valid." : null
+        });
+        setVerifications(prev => prev.filter(v => v.id !== id));
+        setSelectedMerchant(null);
+      } catch (err: any) {
+        alert("Gagal memproses tindakan: " + (err.message || err));
+      }
     }
   };
 
@@ -34,57 +81,69 @@ export default function MerchantVerificationPage() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left text-slate-600">
-              <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100">
-                <tr>
-                  <th className="px-6 py-4 font-bold">Nama Toko</th>
-                  <th className="px-6 py-4 font-bold">Pemilik</th>
-                  <th className="px-6 py-4 font-bold">Lokasi</th>
-                  <th className="px-6 py-4 font-bold">Tanggal Pengajuan</th>
-                  <th className="px-6 py-4 font-bold text-center">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {verifications.length === 0 ? (
+            {loading ? (
+              <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-500">
+                <Loader2 className="w-6 h-6 animate-spin text-resurva-dark" />
+                <span>Memuat data verifikasi...</span>
+              </div>
+            ) : (
+              <table className="w-full text-sm text-left text-slate-600">
+                <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-100">
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
-                      Tidak ada pengajuan merchant baru saat ini.
-                    </td>
+                    <th className="px-6 py-4 font-bold">Nama Toko</th>
+                    <th className="px-6 py-4 font-bold">Pemilik</th>
+                    <th className="px-6 py-4 font-bold">Lokasi</th>
+                    <th className="px-6 py-4 font-bold">Tanggal Pengajuan</th>
+                    <th className="px-6 py-4 font-bold text-center">Aksi</th>
                   </tr>
-                ) : (
-                  verifications.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4 font-medium text-slate-900">{item.name} <span className="ml-2 text-xs text-slate-400 font-normal">({item.type})</span></td>
-                      <td className="px-6 py-4">{item.owner}</td>
-                      <td className="px-6 py-4">{item.location}</td>
-                      <td className="px-6 py-4">{item.date}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex justify-center gap-2">
-                          <button 
-                            onClick={() => setSelectedMerchant(item)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors"
-                          >
-                            <Eye className="w-3.5 h-3.5" /> Detail
-                          </button>
-                          <button 
-                            onClick={() => handleAction(item.id, "Approve")}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors"
-                          >
-                            <CheckCircle className="w-3.5 h-3.5" /> Setuju
-                          </button>
-                          <button 
-                            onClick={() => handleAction(item.id, "Reject")}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg text-xs font-bold transition-colors"
-                          >
-                            <XCircle className="w-3.5 h-3.5" /> Tolak
-                          </button>
-                        </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {verifications.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
+                        Tidak ada pengajuan merchant baru saat ini.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    verifications.map((item) => (
+                      <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-4 font-medium text-slate-900">
+                          {item.name} 
+                          {item.category && (
+                            <span className="ml-2 text-xs text-slate-400 font-normal">({item.category})</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">{item.owner_or_director}</td>
+                        <td className="px-6 py-4">{item.address}</td>
+                        <td className="px-6 py-4">{new Date(item.created_at).toLocaleDateString("id-ID")}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex justify-center gap-2">
+                            <button 
+                              onClick={() => setSelectedMerchant(item)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5" /> Detail
+                            </button>
+                            <button 
+                              onClick={() => handleAction(item.id, "Approve")}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" /> Setuju
+                            </button>
+                            <button 
+                              onClick={() => handleAction(item.id, "Reject")}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                            >
+                              <XCircle className="w-3.5 h-3.5" /> Tolak
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -113,36 +172,62 @@ export default function MerchantVerificationPage() {
                   </div>
                   <div>
                     <p className="text-xs font-bold text-slate-400 uppercase">Pemilik</p>
-                    <p className="text-base font-medium text-slate-900">{selectedMerchant.owner}</p>
+                    <p className="text-base font-medium text-slate-900">{selectedMerchant.owner_or_director}</p>
                   </div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase">Kategori Bisnis</p>
-                    <p className="text-base font-medium text-slate-900">{selectedMerchant.type}</p>
-                  </div>
+                  {selectedMerchant.category && (
+                    <div>
+                      <p className="text-xs font-bold text-slate-400 uppercase">Kategori Bisnis</p>
+                      <p className="text-base font-medium text-slate-900">{selectedMerchant.category}</p>
+                    </div>
+                  )}
+                  {selectedMerchant.email && (
+                    <div>
+                      <p className="text-xs font-bold text-slate-400 uppercase">Email Kontak</p>
+                      <p className="text-base font-medium text-slate-900">{selectedMerchant.email}</p>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="space-y-4">
                   <div>
-                    <p className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1"><MapPin className="w-3 h-3"/> Lokasi</p>
-                    <p className="text-base font-medium text-slate-900">{selectedMerchant.location}</p>
-                    <p className="text-sm text-slate-500 mt-1">Jl. Contoh Alamat No. 123, Kelurahan, Kecamatan.</p>
+                    <p className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1"><MapPin className="w-3 h-3"/> Lokasi / Alamat</p>
+                    <p className="text-base font-medium text-slate-900">{selectedMerchant.address}</p>
                   </div>
                   <div>
                     <p className="text-xs font-bold text-slate-400 uppercase">Tanggal Pengajuan</p>
-                    <p className="text-base font-medium text-slate-900">{selectedMerchant.date}</p>
+                    <p className="text-base font-medium text-slate-900">{new Date(selectedMerchant.created_at).toLocaleDateString("id-ID")}</p>
                   </div>
+                  {selectedMerchant.phone && (
+                    <div>
+                      <p className="text-xs font-bold text-slate-400 uppercase">No. WhatsApp</p>
+                      <p className="text-base font-medium text-slate-900">{selectedMerchant.phone}</p>
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-3">
                 <p className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1"><FileText className="w-3 h-3"/> Dokumen Legalitas</p>
-                <div className="flex items-center gap-3">
-                  <div className="px-3 py-2 bg-white border border-slate-200 rounded-lg flex items-center gap-2 text-sm text-slate-600 cursor-pointer hover:bg-slate-50 transition-colors">
-                    <FileText className="w-4 h-4 text-rose-500" /> KTP_Pemilik.pdf
-                  </div>
-                  <div className="px-3 py-2 bg-white border border-slate-200 rounded-lg flex items-center gap-2 text-sm text-slate-600 cursor-pointer hover:bg-slate-50 transition-colors">
-                    <FileText className="w-4 h-4 text-emerald-500" /> NIB_Toko.pdf
-                  </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  {selectedMerchant.documents && selectedMerchant.documents.length > 0 ? (
+                    selectedMerchant.documents.map((docUrl: string, idx: number) => {
+                      const docLabel = getDocLabel(docUrl, idx, "merchant");
+                      const previewUrl = `/superadmin/verifications/view?url=${encodeURIComponent(getAbsoluteDocUrl(docUrl))}&label=${encodeURIComponent(docLabel)}`;
+                      return (
+                        <a
+                          key={idx}
+                          href={previewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-2 bg-white border border-slate-200 rounded-lg flex items-center gap-2 text-sm text-slate-600 cursor-pointer hover:bg-slate-50 transition-colors"
+                        >
+                          <FileText className="w-4 h-4 text-emerald-600" /> {docLabel}
+                        </a>
+                      );
+                    })
+                  ) : (
+                    <p className="text-sm text-slate-500">Tidak ada dokumen yang diunggah.</p>
+                  )}
                 </div>
               </div>
             </div>

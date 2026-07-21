@@ -148,9 +148,12 @@ const TRANSLATIONS = {
   }
 };
 
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+
 export function AddProductModal({ isOpen, onClose, productToEdit }: AddProductModalProps) {
   const { addProduct, updateProduct, categories, addBatch } = useMerchantContext();
-  const [lang, setLang] = useState<"en" | "id">("en");
+  const { lang } = useLanguage();
+
 
   // Form states for initial stock and batch
   const [initialStock, setInitialStock] = useState(0);
@@ -216,12 +219,7 @@ export function AddProductModal({ isOpen, onClose, productToEdit }: AddProductMo
     return { years, months, days, hours };
   };
 
-  useEffect(() => {
-    const savedLang = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
-    if (savedLang) {
-      setLang(savedLang);
-    }
-  }, [isOpen]);
+
 
   const t = TRANSLATIONS[lang];
 

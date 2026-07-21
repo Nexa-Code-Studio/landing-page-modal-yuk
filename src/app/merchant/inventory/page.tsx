@@ -101,6 +101,8 @@ const TRANSLATIONS = {
   }
 };
 
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+
 export default function InventoryPage() {
   const router = useRouter();
   const {
@@ -113,7 +115,8 @@ export default function InventoryPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [lang, setLang] = useState<"en" | "id">("en");
+  const { lang } = useLanguage();
+
   const [activeTab, setActiveTab] = useState<"Surplus" | "Products" | "History">("Surplus");
 
   // Stock logs now come from context (backend)
@@ -217,25 +220,7 @@ export default function InventoryPage() {
   // Dropdown states for batch actions inside sub-table
   const [activeBatchMenuId, setActiveBatchMenuId] = useState<string | null>(null);
 
-  // Load language preference from localStorage
-  useEffect(() => {
-    const savedLang = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
-    if (savedLang) {
-      setLang(savedLang);
-    } else {
-      const systemLang = navigator.language.startsWith("id") ? "id" : "en";
-      setLang(systemLang);
-    }
 
-    const handleLangChange = () => {
-      const currentSaved = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
-      if (currentSaved) {
-        setLang(currentSaved);
-      }
-    };
-    window.addEventListener("languageChange", handleLangChange);
-    return () => window.removeEventListener("languageChange", handleLangChange);
-  }, []);
 
   // Close three-dot menus when clicking outside
   useEffect(() => {

@@ -3,12 +3,13 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { apiClient, getStoredUser } from '@/lib/api';
 
 gsap.registerPlugin(ScrollTrigger);
 
-// ─── Data ──────────────────────────────────────────────────────────────────
+// ─── Default Data Fallback ──────────────────────────────────────────────────
 
-const D = {
+const defaultD = {
   companyName: 'PT Resurva Group',
   year: 2024,
   foodWasteSaved: 5230,
@@ -140,10 +141,9 @@ function AudioController() {
           setIsPlaying(true);
           setHasInteracted(true);
 
-          // Fade in to 0.5 volume over 2 seconds
           let currentVol = 0;
           const targetVol = 0.5;
-          const step = targetVol / 40; // 40 steps of 50ms = 2000ms
+          const step = targetVol / 40;
           
           const fadeInterval = setInterval(() => {
             currentVol += step;
@@ -157,9 +157,7 @@ function AudioController() {
             }
           }, 50);
 
-        }).catch(() => {
-          // Play failed (likely still restricted), ignore silently
-        });
+        }).catch(() => {});
       }
 
       window.removeEventListener('scroll', handleFirstInteraction);
@@ -249,102 +247,43 @@ function Section({ children, className = '', id }: { children: React.ReactNode; 
       onEnter: () => {
         gsap.to(childEls, { y: 0, opacity: 1, stagger: 0.15, duration: 0.8, ease: 'power3.out' });
       },
-      once: true,
     });
-
-    return () => {
-      ScrollTrigger.getAll().forEach((st) => { if (st.trigger === el) st.kill(); });
-    };
   }, []);
 
   return (
-    <section ref={ref} id={id} className={`min-h-screen flex items-center justify-center relative ${className}`}>
+    <section ref={ref} id={id} className={`min-h-screen flex items-center justify-center relative py-20 ${className}`}>
       {children}
     </section>
   );
 }
 
-// ─── Emoji Burst ─ themed emojis that pop and fly out on section enter ──────
+// ─── Floating Emoji Curtain ────────────────────────────────────────────────
 
-function EmojiCurtain({ emojis, id }: { emojis: string[]; id: string }) {
-  const curtainRef = useRef<HTMLDivElement>(null);
+function EmojiCurtain({ id, emojis }: { id: string; emojis: string[] }) {
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const el = curtainRef.current;
+    const el = containerRef.current;
     if (!el) return;
+    const parent = el.closest('section');
+    if (!parent) return;
 
-    const emojiEls = el.querySelectorAll('.emoji-particle');
-
-    // Set initial state: hidden and scaled down in the center
-    gsap.set(emojiEls, { 
-      opacity: 0, 
-      scale: 0, 
-      xPercent: -50, 
-      yPercent: -50,
-      x: 0,
-      y: 0,
-      rotation: 0 
-    });
+    const items = el.querySelectorAll('.emoji-item');
+    gsap.set(items, { y: -80, opacity: 0 });
 
     ScrollTrigger.create({
-      trigger: el,
-      start: 'top 65%', // Trigger when section is nicely visible
+      trigger: parent,
+      start: 'top 80%',
       onEnter: () => {
-        const tl = gsap.timeline();
-        
-        // Phase 1: Pop in at the center
-        tl.to(emojiEls, {
-          opacity: 1,
-          scale: 1.5,
-          duration: 0.4,
-          ease: 'back.out(1.7)',
-          stagger: 0.05
-        });
-
-        // Phase 2: Explode outward (but stay visible)
-        tl.to(emojiEls, {
-          x: (i) => {
-            const isLeft = i % 2 === 0;
-            return isLeft ? -(150 + Math.random() * 200) : (150 + Math.random() * 200);
-          },
-          y: () => (Math.random() - 0.5) * 200,
-          rotation: () => (Math.random() - 0.5) * 180,
-          scale: () => 0.8 + Math.random() * 0.4, // Return to normal-ish size
-          duration: 0.8,
-          ease: 'power3.out',
-        }, "-=0.2");
-
-        // Phase 3: Float gently and fade out
-        tl.to(emojiEls, {
-          y: () => (Math.random() > 0.5 ? '+=150' : '-=150'), // Float up or down
-          x: () => (Math.random() > 0.5 ? '+=50' : '-=50'), // Slight horizontal drift
-          rotation: '+=60',
-          opacity: 0,
-          duration: 1.5,
-          ease: 'power1.inOut',
-        }, "+=0.1");
+        gsap.to(items, { y: 0, opacity: 0.6, stagger: 0.1, duration: 0.6, ease: 'back.out(1.7)' });
       },
-      once: true,
     });
-
-    return () => {
-      ScrollTrigger.getAll().forEach((st) => { if (st.trigger === el) st.kill(); });
-    };
-  }, []);
+  }, [id]);
 
   return (
-    <div ref={curtainRef} id={`curtain-${id}`} className="absolute inset-0 pointer-events-none z-20 overflow-hidden flex items-center justify-center">
-      {emojis.map((emoji, i) => (
-        <span
-          key={`${id}-${i}`}
-          className="emoji-particle absolute select-none"
-          style={{
-            top: '50%',
-            left: '50%',
-            fontSize: `${60 + (i * 7) % 20}px`,
-            filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.3))',
-          }}
-        >
+    <div ref={containerRef} className="absolute inset-x-0 top-0 pointer-events-none z-10 flex justify-around px-8 pt-6 overflow-hidden">
+      {emojis.map((emoji, idx) => (
+        <span key={idx} className="emoji-item text-4xl sm:text-5xl select-none filter drop-shadow-[0_4px_12px_rgba(0,0,0,0.4)]">
           {emoji}
         </span>
       ))}
@@ -352,14 +291,52 @@ function EmojiCurtain({ emojis, id }: { emojis: string[]; id: string }) {
   );
 }
 
-// ─── Main Page ─────────────────────────────────────────────────────────────
+// ─── Main Component ─────────────────────────────────────────────────────────
 
-export default function ResurvaWrappedPage() {
+export default function WrappedPage() {
+  const [data, setData] = useState(defaultD);
   const [copied, setCopied] = useState(false);
 
+  // Fetch Real Wrapped Analytics
   useEffect(() => {
-    document.title = "Resurva - Enterprise Wrapped 2024";
+    async function loadWrappedData() {
+      const user = getStoredUser();
+      let bId = user?.business_id;
+      if (!bId) {
+        try {
+          const bs = await apiClient.get<any[]>('/business');
+          if (bs && bs.length > 0) bId = bs[0].id;
+        } catch (e) {}
+      }
+      if (bId) {
+        try {
+          const res = await apiClient.get<any>(`/analytics/enterprise/wrapped?business_id=${bId}&year=2024`);
+          if (res) {
+            setData({
+              companyName: res.company_name || 'Enterprise Group',
+              year: res.year || 2024,
+              foodWasteSaved: res.food_waste_saved || 0,
+              costEfficiency: res.cost_efficiency || 12,
+              carbonReduced: res.carbon_reduced || 0,
+              treesEquivalent: res.trees_equivalent || 0,
+              gasolineEquivalent: res.gasoline_equivalent || 0,
+              smartphoneChargingHours: res.smartphone_charging_hours || 0,
+              topBranch: res.top_branch || 'Cabang Utama',
+              totalBranches: res.total_branches || 0,
+              totalOrders: res.total_orders || 0,
+            });
+          }
+        } catch (err) {
+          console.warn("Failed to load wrapped analytics:", err);
+        }
+      }
+    }
+    loadWrappedData();
   }, []);
+
+  useEffect(() => {
+    document.title = `Resurva - Enterprise Wrapped ${data.year}`;
+  }, [data.year]);
 
   const branchRef = useRef<HTMLDivElement>(null);
   const ordersRef = useRef<HTMLDivElement>(null);
@@ -369,18 +346,18 @@ export default function ResurvaWrappedPage() {
   const gasRef = useRef<HTMLDivElement>(null);
   const phoneRef = useRef<HTMLDivElement>(null);
 
-  const branches = useCountUp(D.totalBranches, 1.5, branchRef);
-  const orders = useCountUp(D.totalOrders, 2, ordersRef);
-  const food = useCountUp(D.foodWasteSaved, 2, foodRef);
-  const carbon = useCountUp(D.carbonReduced, 2.5, carbonRef);
-  const trees = useCountUp(D.treesEquivalent, 2, treesRef);
-  const gas = useCountUp(D.gasolineEquivalent, 2.5, gasRef);
-  const phone = useCountUp(Math.round(D.smartphoneChargingHours / 100_000), 2, phoneRef);
+  const branches = useCountUp(data.totalBranches, 1.5, branchRef);
+  const orders = useCountUp(data.totalOrders, 2, ordersRef);
+  const food = useCountUp(data.foodWasteSaved, 2, foodRef);
+  const carbon = useCountUp(data.carbonReduced, 2.5, carbonRef);
+  const trees = useCountUp(data.treesEquivalent, 2, treesRef);
+  const gas = useCountUp(data.gasolineEquivalent, 2.5, gasRef);
+  const phone = useCountUp(Math.round(data.smartphoneChargingHours / 100_000), 2, phoneRef);
 
   const handleShare = async () => {
     const url = typeof window !== 'undefined' ? window.location.href : '';
     if (navigator?.share) {
-      try { await navigator.share({ title: 'RESURVA Wrapped 2024', url }); } catch (_) {}
+      try { await navigator.share({ title: `RESURVA Wrapped ${data.year}`, url }); } catch (_) {}
     } else {
       navigator.clipboard?.writeText(url);
       setCopied(true);
@@ -393,7 +370,7 @@ export default function ResurvaWrappedPage() {
       {/* Fixed watermark */}
       <div className="fixed top-6 left-8 z-50 flex items-center gap-2 pointer-events-none">
         <span className="text-white/80 font-bold text-lg tracking-tight">RESURVA</span>
-        <span className="text-[#EDD099]/60 text-sm">Wrapped {D.year}</span>
+        <span className="text-[#EDD099]/60 text-sm">Wrapped {data.year}</span>
       </div>
 
       {/* Ambient orbs */}
@@ -413,14 +390,14 @@ export default function ResurvaWrappedPage() {
         <div className="flex flex-col items-center justify-center text-center px-6 space-y-8 relative z-10">
           <div className="reveal inline-flex items-center gap-2 px-5 py-2 rounded-full border border-[#EDD099]/30 bg-white/5 backdrop-blur-sm">
             <span>🌿</span>
-            <span className="text-[#EDD099] text-sm font-semibold tracking-[0.25em] uppercase">RESURVA Wrapped {D.year}</span>
+            <span className="text-[#EDD099] text-sm font-semibold tracking-[0.25em] uppercase">RESURVA Wrapped {data.year}</span>
           </div>
           <div className="reveal space-y-5">
             <h1 className="text-7xl md:text-9xl font-black text-white leading-[0.85] tracking-tighter">
               Dampak<br /><span className="text-[#EDD099]">Nyata.</span>
             </h1>
             <p className="text-xl text-emerald-100/60 font-light max-w-lg mx-auto leading-relaxed">
-              Rangkuman perjalanan keberlanjutan <span className="text-white font-medium">{D.companyName}</span> sepanjang tahun {D.year}.
+              Rangkuman perjalanan keberlanjutan <span className="text-white font-medium">{data.companyName}</span> sepanjang tahun {data.year}.
             </p>
           </div>
           <div className="reveal flex flex-col items-center gap-2 pt-4">
@@ -447,135 +424,95 @@ export default function ResurvaWrappedPage() {
             </div>
             <div className="w-px bg-white/10" />
             <div>
-              <div className="text-2xl font-black text-white leading-tight">{D.topBranch}</div>
-              <div className="text-xs text-emerald-100/50 mt-1 uppercase tracking-wider">Cabang Terbaik</div>
+              <div className="text-2xl font-black text-white leading-tight">{data.topBranch}</div>
+              <div className="text-xs text-emerald-100/50 mt-1 uppercase tracking-wider">Cabang Performa Terbaik</div>
             </div>
           </div>
         </div>
       </Section>
 
       {/* ═══ SECTION 2: Penyelamatan Pangan ═══ */}
-      <Section id="food-rescue">
-        <EmojiCurtain id="food" emojis={['🍱', '🥗', '🍜', '🍞']} />
+      <Section id="food">
+        <EmojiCurtain id="food" emojis={['🍱', '🌱', '🥐', '🥗']} />
         <div className="flex flex-col items-center justify-center text-center px-6 space-y-8 relative z-10">
           <p className="reveal text-emerald-300/80 uppercase tracking-[0.25em] text-xs font-semibold">Penyelamatan Pangan</p>
           <div className="reveal space-y-2">
-            <p className="text-emerald-100/50 text-2xl">Anda berhasil menyelamatkan</p>
-            <div ref={foodRef} className="flex items-end justify-center gap-4">
-              <span className="font-black text-white leading-none" style={{ fontSize: 'clamp(70px, 14vw, 130px)' }}>{food.toLocaleString('id-ID')}</span>
-              <span className="text-4xl font-bold text-emerald-400 mb-4">KG</span>
+            <p className="text-[#EDD099] text-[clamp(1.5rem,4vw,3.5rem)] font-extrabold leading-tight">Anda berhasil menyelamatkan</p>
+            <div ref={foodRef} className="font-black text-[#EDD099] leading-none tracking-tighter" style={{ fontSize: 'clamp(90px, 18vw, 160px)' }}>
+              {food.toLocaleString('id-ID')}
             </div>
-            <p className="text-3xl md:text-4xl font-bold text-[#EDD099]">Makanan dari Pembuangan</p>
+            <p className="text-3xl md:text-4xl font-bold text-white">Kg Makanan Terbuang</p>
           </div>
-          <div className="reveal grid grid-cols-2 gap-4 max-w-md w-full">
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-5 text-left hover:bg-white/[0.08] transition-colors duration-300">
-              <div className="text-2xl mb-2">🍱</div>
-              <div className="text-2xl font-black text-white">~{(D.foodWasteSaved * 2).toLocaleString('id-ID')}</div>
-              <div className="text-xs text-emerald-100/50 mt-1 uppercase tracking-wider">Porsi Makanan</div>
+          <div className="reveal grid grid-cols-2 gap-4 max-w-md w-full pt-4">
+            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+              <div className="text-2xl font-black text-white">~{(data.foodWasteSaved * 2).toLocaleString('id-ID')}</div>
+              <div className="text-[11px] text-emerald-100/50 uppercase tracking-wider mt-1">Porsi Diselamatkan</div>
             </div>
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-5 text-left hover:bg-white/[0.08] transition-colors duration-300">
-              <div className="text-2xl mb-2">📈</div>
-              <div className="text-2xl font-black text-[#EDD099]">+{D.costEfficiency}%</div>
-              <div className="text-xs text-emerald-100/50 mt-1 uppercase tracking-wider">Efisiensi Operasional</div>
+            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+              <div className="text-2xl font-black text-[#EDD099]">+{data.costEfficiency}%</div>
+              <div className="text-[11px] text-emerald-100/50 uppercase tracking-wider mt-1">Efisiensi Biaya Toko</div>
             </div>
           </div>
         </div>
       </Section>
 
-      {/* ═══ SECTION 3: Dampak Lingkungan ═══ */}
-      <Section id="carbon-impact">
-        <EmojiCurtain id="carbon" emojis={['🌳', '🌿', '🌲', '🍃']} />
+      {/* ═══ SECTION 3: Jejak Karbon ═══ */}
+      <Section id="carbon">
+        <EmojiCurtain id="carbon" emojis={['🌍', '✨', '🌿', '💚']} />
         <div className="flex flex-col items-center justify-center text-center px-6 space-y-8 relative z-10">
           <p className="reveal text-emerald-300/80 uppercase tracking-[0.25em] text-xs font-semibold">Dampak Lingkungan</p>
           <div className="reveal space-y-2">
-            <p className="text-emerald-100/50 text-xl">Total emisi karbon yang Anda cegah</p>
-            <div ref={carbonRef} className="font-black text-white leading-none" style={{ fontSize: 'clamp(55px, 10vw, 100px)' }}>{carbon.toLocaleString('id-ID')}</div>
-            <p className="text-4xl md:text-5xl font-black text-[#EDD099]">Kg CO₂e</p>
+            <p className="text-white text-[clamp(1.5rem,4vw,3.5rem)] font-extrabold leading-tight">Reduksi emisi karbon terhindari</p>
+            <div ref={carbonRef} className="font-black text-[#EDD099] leading-none tracking-tighter" style={{ fontSize: 'clamp(80px, 16vw, 150px)' }}>
+              {carbon.toLocaleString('id-ID')}
+            </div>
+            <p className="text-3xl md:text-4xl font-bold text-emerald-300">Kg CO₂e</p>
           </div>
-          <div className="reveal relative flex items-center justify-center w-full max-w-lg">
-            <div className="absolute text-[180px] opacity-[0.06] select-none animate-pulse" style={{ animationDuration: '4s' }}>🌲</div>
-            <div ref={treesRef} className="relative bg-white/[0.07] backdrop-blur-sm border border-[#EDD099]/20 rounded-3xl px-10 py-7 w-full hover:bg-white/[0.1] transition-colors duration-500">
-              <p className="text-lg text-emerald-100/60">Itu setara dengan menanam</p>
-              <p className="text-4xl md:text-5xl font-black text-white mt-1">{trees.toLocaleString('id-ID')}{' '}<span className="text-[#EDD099]">bibit pohon</span></p>
-              <p className="text-emerald-100/50 mt-1">yang tumbuh selama 10 tahun penuh</p>
+        </div>
+      </Section>
+
+      {/* ═══ SECTION 4: Analogi ═══ */}
+      <Section id="equivalents">
+        <div className="flex flex-col items-center justify-center text-center px-6 space-y-12 relative z-10 max-w-4xl">
+          <p className="reveal text-emerald-300/80 uppercase tracking-[0.25em] text-xs font-semibold">Bila Diutarakannya</p>
+          <h2 className="reveal text-4xl md:text-6xl font-black text-white tracking-tight">Setara Dengan...</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+            <div className="reveal p-8 rounded-3xl bg-white/5 border border-white/10 backdrop-blur-sm flex flex-col items-center space-y-4 hover:border-[#EDD099]/30 transition-all">
+              <span className="text-5xl">🌲</span>
+              <div ref={treesRef} className="text-4xl font-black text-[#EDD099]">{trees.toLocaleString('id-ID')}</div>
+              <p className="text-sm text-emerald-100/70">Bibit pohon ditanam &amp; tumbuh 10 tahun</p>
+            </div>
+            <div className="reveal p-8 rounded-3xl bg-white/5 border border-white/10 backdrop-blur-sm flex flex-col items-center space-y-4 hover:border-[#EDD099]/30 transition-all">
+              <span className="text-5xl">🚗</span>
+              <div ref={gasRef} className="text-4xl font-black text-[#EDD099]">{gas.toLocaleString('id-ID')}</div>
+              <p className="text-sm text-emerald-100/70">KM jarak perjalanan mobil penumpang</p>
+            </div>
+            <div className="reveal p-8 rounded-3xl bg-white/5 border border-white/10 backdrop-blur-sm flex flex-col items-center space-y-4 hover:border-[#EDD099]/30 transition-all">
+              <span className="text-5xl">📱</span>
+              <div ref={phoneRef} className="text-4xl font-black text-[#EDD099]">{phone.toLocaleString('id-ID')} Ratus Ribu</div>
+              <p className="text-sm text-emerald-100/70">Jam pengisian daya smartphone</p>
             </div>
           </div>
         </div>
       </Section>
 
-      {/* ═══ SECTION 4: Analogi Sehari-hari ═══ */}
-      <Section id="daily-impact">
-        <EmojiCurtain id="daily" emojis={['🚗', '📱', '⚡', '🔋']} />
-        <div className="flex flex-col items-center justify-center px-6 space-y-8 w-full max-w-5xl mx-auto relative z-10">
-          <div className="reveal text-center space-y-2">
-            <p className="text-emerald-300/80 uppercase tracking-[0.25em] text-xs font-semibold">Dalam Angka Sehari-Hari</p>
-            <h2 className="text-4xl md:text-5xl font-bold text-white">Bayangkan seperti ini...</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 w-full">
-            <div className="reveal relative bg-white/5 border border-white/10 rounded-[2rem] p-8 overflow-hidden group hover:border-emerald-400/30 hover:bg-white/[0.08] transition-all duration-500">
-              <div className="absolute -bottom-6 -right-6 text-[110px] opacity-[0.06] select-none group-hover:opacity-[0.1] transition-opacity duration-500">🚗</div>
-              <div className="relative z-10 space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform duration-300">🚗</div>
-                <p className="text-emerald-200/70 text-xs uppercase tracking-widest">Penghematan BBM</p>
-                <div ref={gasRef} className="flex items-baseline gap-2">
-                  <span className="text-4xl md:text-5xl font-black text-white">{gas.toLocaleString('id-ID')}</span>
-                  <span className="text-2xl font-bold text-emerald-400">KM</span>
-                </div>
-                <p className="text-emerald-100/50 text-sm">Perjalanan kendaraan bermotor yang berhasil dieliminasi</p>
-              </div>
-            </div>
-            <div className="reveal relative bg-white/5 border border-white/10 rounded-[2rem] p-8 overflow-hidden group hover:border-[#EDD099]/30 hover:bg-white/[0.08] transition-all duration-500">
-              <div className="absolute -bottom-6 -right-6 text-[110px] opacity-[0.06] select-none group-hover:opacity-[0.1] transition-opacity duration-500">📱</div>
-              <div className="relative z-10 space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-[#EDD099]/20 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform duration-300">📱</div>
-                <p className="text-[#EDD099]/70 text-xs uppercase tracking-widest">Hemat Energi Listrik</p>
-                <div ref={phoneRef} className="flex items-baseline gap-2">
-                  <span className="text-4xl md:text-5xl font-black text-white">{(phone / 10).toFixed(1)}Jt</span>
-                  <span className="text-2xl font-bold text-[#EDD099]">JAM</span>
-                </div>
-                <p className="text-emerald-100/50 text-sm">Pengisian daya smartphone secara terus-menerus</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Section>
-
-      {/* ═══ SECTION 5: Penutup ═══ */}
+      {/* ═══ SECTION 5: Penutup / Share ═══ */}
       <Section id="closing">
-        <EmojiCurtain id="closing" emojis={['🏆', '🌟', '🎉', '🏆']} />
-        <div className="flex flex-col items-center justify-center text-center px-6 space-y-8 relative z-10">
+        <div className="flex flex-col items-center justify-center text-center px-6 space-y-8 relative z-10 max-w-3xl">
           <div className="reveal space-y-4">
-            <div className="w-24 h-24 rounded-full bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-5xl mx-auto animate-bounce" style={{ animationDuration: '3s' }}>🏆</div>
-            <h2 className="text-5xl md:text-6xl font-black text-white leading-tight">Terima kasih,<br /><span className="text-[#EDD099]">Mitra Resurva!</span></h2>
-            <p className="text-xl text-emerald-100/60 max-w-2xl mx-auto leading-relaxed">Kontribusi nyata Anda di tahun {D.year} membantu Indonesia satu langkah lebih dekat menuju pembangunan yang berkelanjutan.</p>
+            <span className="text-6xl">🏆</span>
+            <h2 className="text-5xl md:text-7xl font-black text-white tracking-tight">Terima Kasih, <br /><span className="text-[#EDD099]">{data.companyName}</span></h2>
+            <p className="text-xl text-emerald-100/60 max-w-2xl mx-auto leading-relaxed">
+              Kontribusi nyata Anda di tahun {data.year} membantu Indonesia satu langkah lebih dekat menuju pembangunan yang berkelanjutan.
+            </p>
           </div>
-          <div className="reveal flex flex-wrap justify-center gap-4">
-            {[{ num: 9, label: 'Industri, Inovasi & Infrastruktur', color: 'bg-blue-600' }, { num: 17, label: 'Kemitraan untuk Tujuan', color: 'bg-blue-900' }].map(sdg => (
-              <div key={sdg.num} className="flex flex-col items-center gap-2 bg-white/5 border border-white/10 rounded-2xl px-8 py-5 hover:scale-105 transition-transform duration-200">
-                <div className={`w-14 h-14 ${sdg.color} rounded-xl flex items-center justify-center font-black text-3xl`}>{sdg.num}</div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-white/70 max-w-[130px] text-center leading-snug">{sdg.label}</p>
-              </div>
-            ))}
-          </div>
-          <div className="reveal flex flex-col sm:flex-row gap-3 items-center">
-            <button onClick={handleShare} className="bg-[#EDD099] hover:bg-[#F5E2BC] text-[#0F3D2E] font-bold px-8 py-4 rounded-full text-base transition-all duration-200 hover:scale-105 shadow-lg shadow-[#EDD099]/20">
-              {copied ? '✅ Link Tersalin!' : '📤 Bagikan ke Sosial Media'}
+          <div className="reveal flex flex-col sm:flex-row gap-4 pt-4 w-full max-w-md">
+            <button onClick={handleShare} className="flex-1 py-4 px-8 rounded-full bg-[#EDD099] hover:bg-[#e0be80] text-[#0F3D2E] font-bold text-base transition-all shadow-lg hover:scale-[1.02] cursor-pointer">
+              {copied ? 'Link Tersalin! 📋' : 'Bagikan Wrapped 🚀'}
             </button>
           </div>
-          <p className="reveal text-sm text-[#EDD099]/30 tracking-widest">#RESURVAWrapped2024 · #SafeFoodSafePlanet</p>
         </div>
       </Section>
-
-      <div className="h-20" />
-
-      <style jsx global>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateX(10px); }
-          to { opacity: 1; transform: translateX(0); }
-        }
-        .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
-        html { scroll-behavior: smooth; }
-      `}</style>
     </div>
   );
 }

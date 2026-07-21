@@ -101,9 +101,12 @@ const TRANSLATIONS = {
   }
 };
 
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+
 export default function MerchantProfilePage() {
-  const [lang, setLang] = useState<"en" | "id">("en");
+  const { lang } = useLanguage();
   const [showToast, setShowToast] = useState(false);
+
   const [toastMessage, setToastMessage] = useState("");
   
   // Modals state
@@ -311,21 +314,7 @@ export default function MerchantProfilePage() {
     fetchCategories();
   }, [storeId]);
 
-  useEffect(() => {
-    const savedLang = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
-    if (savedLang) {
-      setLang(savedLang);
-    }
 
-    const handleLangChange = () => {
-      const currentSaved = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
-      if (currentSaved) {
-        setLang(currentSaved);
-      }
-    };
-    window.addEventListener("languageChange", handleLangChange);
-    return () => window.removeEventListener("languageChange", handleLangChange);
-  }, []);
 
   const handleSearchOnMap = async () => {
     if (!address) {

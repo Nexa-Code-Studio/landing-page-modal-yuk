@@ -35,6 +35,7 @@ export interface AuthUser {
   username: string;
   email: string;
   role: string;
+  is_active: boolean;
   business_id: string | null;
   store_id: string | null;
 }
@@ -120,10 +121,17 @@ async function request<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  let response = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      headers,
+    });
+  } catch (err: any) {
+    console.warn(`[apiClient] Network error on ${path}:`, err);
+    throw new Error(`Gagal terhubung ke server backend (${err.message || 'Failed to fetch'})`);
+  }
+
 
   if (response.status === 401) {
     let isExpired = false;
@@ -183,7 +191,10 @@ export const apiClient = {
     request<T>(path, { method: "POST", body: JSON.stringify(body) }),
   put: <T>(path: string, body: unknown) =>
     request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
+  patch: <T>(path: string, body: unknown) =>
+    request<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+
   uploadFile: async (path: string, file: File): Promise<{ access_url: string }> => {
     const token = getAccessToken();
     const headers: Record<string, string> = {};
@@ -232,3 +243,11 @@ export function getStoredUser(): AuthUser | null {
     return null;
   }
 }
+
+export function logout() {
+  if (typeof window === "undefined") return;
+  clearTokens();
+  localStorage.removeItem("auth_user");
+  localStorage.removeItem("auth_store_id");
+}
+

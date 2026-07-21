@@ -5,12 +5,14 @@ import { usePathname } from "next/navigation";
 import { SharedSidebar, MenuItem, ProfileInfo } from "@/components/layout/SharedSidebar";
 import { SharedHeader } from "@/components/layout/SharedHeader";
 import { MerchantProvider, useMerchantContext } from "@/lib/contexts/MerchantContext";
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+
 
 function MerchantLayoutContent({ children }: { children: React.ReactNode }) {
   const { activeOrdersCount, store } = useMerchantContext();
+  const { lang } = useLanguage();
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [lang, setLang] = useState<"en" | "id">("en");
 
   const profileName = store?.name || "UMKM Berkah";
   const profileSubtext = store?.city ? `Cabang ${store.city}` : "Cabang Malang";
@@ -29,25 +31,6 @@ function MerchantLayoutContent({ children }: { children: React.ReactNode }) {
     subtext: profileSubtext,
     initials: profileInitials,
   };
-
-  useEffect(() => {
-    const savedLang = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
-    if (savedLang) {
-      setLang(savedLang);
-    } else {
-      const systemLang = navigator.language.startsWith("id") ? "id" : "en";
-      setLang(systemLang);
-    }
-
-    const handleLangChange = () => {
-      const currentSaved = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
-      if (currentSaved) {
-        setLang(currentSaved);
-      }
-    };
-    window.addEventListener("languageChange", handleLangChange);
-    return () => window.removeEventListener("languageChange", handleLangChange);
-  }, []);
 
   const titleMapping = lang === "en" ? {
     "/merchant": "Dashboard",

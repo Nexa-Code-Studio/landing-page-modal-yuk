@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { logout } from "@/lib/api";
+
 
 export interface MenuItem {
   name: string;
@@ -61,28 +63,12 @@ const SIDEBAR_TRANSLATIONS = {
   }
 };
 
+import { useLanguage } from "@/lib/contexts/LanguageContext";
+
 export function SharedSidebar({ roleName, menus, profile, isOpen = true }: SharedSidebarProps) {
   const pathname = usePathname();
-  const [lang, setLang] = useState<"en" | "id">("en");
+  const { lang } = useLanguage();
 
-  useEffect(() => {
-    const savedLang = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
-    if (savedLang) {
-      setLang(savedLang);
-    } else {
-      const systemLang = navigator.language.startsWith("id") ? "id" : "en";
-      setLang(systemLang);
-    }
-
-    const handleLangChange = () => {
-      const currentSaved = localStorage.getItem("preferredLanguage") as "en" | "id" | null;
-      if (currentSaved) {
-        setLang(currentSaved);
-      }
-    };
-    window.addEventListener("languageChange", handleLangChange);
-    return () => window.removeEventListener("languageChange", handleLangChange);
-  }, []);
 
   const translate = (key: string) => {
     return SIDEBAR_TRANSLATIONS[lang][key as keyof typeof SIDEBAR_TRANSLATIONS["en"]] || key;
@@ -156,8 +142,10 @@ export function SharedSidebar({ roleName, menus, profile, isOpen = true }: Share
         {/* Logout Button */}
         <Link 
           href={`/login-${roleName.toLowerCase()}`}
+          onClick={() => logout()}
           className={`flex items-center justify-center gap-2 w-full px-4 py-2 text-sm font-medium text-slate-300 rounded-md transition-colors ${style.logoutHover}`}
         >
+
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
             <polyline points="16 17 21 12 16 7"/>
