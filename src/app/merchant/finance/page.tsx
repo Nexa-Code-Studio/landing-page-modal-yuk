@@ -343,7 +343,7 @@ export default function FinancePage() {
     if (!storeId) return;
     try {
       // Fetch Balances
-      const balData = await apiClient.get<{ digital: number; offline: number }>(
+      const balData = await apiClient.get<{ digital: number; offline: number; escrow: number }>(
         `/wallets/store/${storeId}/balances`
       );
       setBalances(balData);

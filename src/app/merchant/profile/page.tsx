@@ -187,7 +187,7 @@ export default function MerchantProfilePage() {
   const fetchBalances = async () => {
     if (!storeId) return;
     try {
-      const data = await apiClient.get<{ digital: number; offline: number }>(
+      const data = await apiClient.get<{ digital: number; offline: number; escrow: number }>(
         `/wallets/store/${storeId}/balances`
       );
       if (data) {
