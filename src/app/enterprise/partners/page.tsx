@@ -325,9 +325,9 @@ export default function EnterprisePartnersPage() {
 
   const renderModalForm = (isEdit = false) => (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-8 animate-in fade-in zoom-in-95 duration-200">
-        <div className="p-6">
-          <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-8 animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh] overflow-hidden">
+        <div className="p-6 flex flex-col min-h-0 h-full">
+          <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-100 shrink-0">
             <div>
               <h3 className="text-xl font-bold text-slate-800">{isEdit ? "Edit Data Mitra" : "Daftarkan Mitra Baru"}</h3>
               <p className="text-sm text-slate-500">{isEdit ? "Perbarui informasi profil cabang toko." : "Masukkan informasi outlet dan kredensial login untuk merchant."}</p>
@@ -337,92 +337,94 @@ export default function EnterprisePartnersPage() {
             </button>
           </div>
 
-          <form onSubmit={isEdit ? handleEditSubmit : handleAddSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="p-name">Nama Usaha / Toko</Label>
-                <Input id="p-name" placeholder="Contoh: Toko Roti Berkah" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="p-category">Kategori Outlet</Label>
-                <Input id="p-category" placeholder="Bakery, Resto, Cafe..." value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="p-branch">Kota / Cabang</Label>
-                <Input id="p-branch" placeholder="Contoh: Malang" value={form.branch} onChange={e => setForm(f => ({ ...f, branch: e.target.value }))} required />
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="p-address">Alamat Lengkap</Label>
-                <div className="flex gap-2">
-                  <Input id="p-address" placeholder="Jl. Raya No. 1..." value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} required />
-                  <Button type="button" onClick={handleGeocode} disabled={!form.address || isGeocoding} className="shrink-0 bg-slate-800 hover:bg-slate-900 text-white cursor-pointer">
-                    {isGeocoding ? "Mencari..." : "Cari Titik Lokasi"}
-                  </Button>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="p-lat">Latitude</Label>
-                <Input id="p-lat" type="number" step="any" placeholder="-7.940026" value={form.latitude || ""} onChange={e => setForm(f => ({ ...f, latitude: parseFloat(e.target.value) }))} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="p-lng">Longitude</Label>
-                <Input id="p-lng" type="number" step="any" placeholder="112.616335" value={form.longitude || ""} onChange={e => setForm(f => ({ ...f, longitude: parseFloat(e.target.value) }))} />
-              </div>
-              {form.latitude !== undefined && form.longitude !== undefined && !isNaN(form.latitude) && !isNaN(form.longitude) && (
-                <div className="space-y-2 md:col-span-2">
-                  <Label className="text-sm font-semibold text-slate-700">Pratinjau Lokasi Peta</Label>
-                  <MapDisplay 
-                    latitude={form.latitude} 
-                    longitude={form.longitude} 
-                    name={form.name} 
-                    draggable={true} 
-                    onLocationChange={(lat, lng) => setForm(f => ({ ...f, latitude: lat, longitude: lng }))}
-                  />
-                </div>
-              )}
-
-              <div className="space-y-2 md:col-span-2">
-                <hr className="my-2 border-slate-100" />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="p-contact">No. Telepon / WA Merchant</Label>
-                <Input id="p-contact" placeholder="0812xxxxxxxx" value={form.contact} onChange={e => setForm(f => ({ ...f, contact: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="p-email">Email Merchant</Label>
-                <Input id="p-email" type="email" placeholder="berkah@outlet.com" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
-              </div>
-
-              {!isEdit && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="p-username">Username Login Merchant</Label>
-                    <Input id="p-username" placeholder="roti_berkah" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="p-password">Password Login Merchant</Label>
-                    <Input id="p-password" type="password" placeholder="••••••••" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required />
-                  </div>
-                </>
-              )}
-
-              {isEdit && (
+          <form onSubmit={isEdit ? handleEditSubmit : handleAddSubmit} className="flex-grow flex flex-col min-h-0">
+            <div className="flex-grow overflow-y-auto pr-2 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Status Kemitraan</Label>
-                  <select 
-                    className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    value={form.status}
-                    onChange={e => setForm(f => ({ ...f, status: e.target.value as Partner["status"] }))}
-                  >
-                    <option value="Aktif">Aktif</option>
-                    <option value="Nonaktif">Nonaktif</option>
-                  </select>
+                  <Label htmlFor="p-name">Nama Usaha / Toko</Label>
+                  <Input id="p-name" placeholder="Contoh: Toko Roti Berkah" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
                 </div>
-              )}
+                <div className="space-y-2">
+                  <Label htmlFor="p-category">Kategori Outlet</Label>
+                  <Input id="p-category" placeholder="Bakery, Resto, Cafe..." value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="p-branch">Kota / Cabang</Label>
+                  <Input id="p-branch" placeholder="Contoh: Malang" value={form.branch} onChange={e => setForm(f => ({ ...f, branch: e.target.value }))} required />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="p-address">Alamat Lengkap</Label>
+                  <div className="flex gap-2">
+                    <Input id="p-address" placeholder="Jl. Raya No. 1..." value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} required />
+                    <Button type="button" onClick={handleGeocode} disabled={!form.address || isGeocoding} className="shrink-0 bg-slate-800 hover:bg-slate-900 text-white cursor-pointer">
+                      {isGeocoding ? "Mencari..." : "Cari Titik Lokasi"}
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="p-lat">Latitude</Label>
+                  <Input id="p-lat" type="number" step="any" placeholder="-7.940026" value={form.latitude || ""} onChange={e => setForm(f => ({ ...f, latitude: parseFloat(e.target.value) }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="p-lng">Longitude</Label>
+                  <Input id="p-lng" type="number" step="any" placeholder="112.616335" value={form.longitude || ""} onChange={e => setForm(f => ({ ...f, longitude: parseFloat(e.target.value) }))} />
+                </div>
+                {form.latitude !== undefined && form.longitude !== undefined && !isNaN(form.latitude) && !isNaN(form.longitude) && (
+                  <div className="space-y-2 md:col-span-2">
+                    <Label className="text-sm font-semibold text-slate-700">Pratinjau Lokasi Peta</Label>
+                    <MapDisplay 
+                      latitude={form.latitude} 
+                      longitude={form.longitude} 
+                      name={form.name} 
+                      draggable={true} 
+                      onLocationChange={(lat, lng) => setForm(f => ({ ...f, latitude: lat, longitude: lng }))}
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-2 md:col-span-2">
+                  <hr className="my-2 border-slate-100" />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="p-contact">No. Telepon / WA Merchant</Label>
+                  <Input id="p-contact" placeholder="0812xxxxxxxx" value={form.contact} onChange={e => setForm(f => ({ ...f, contact: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="p-email">Email Merchant</Label>
+                  <Input id="p-email" type="email" placeholder="berkah@outlet.com" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+                </div>
+
+                {!isEdit && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="p-username">Username Login Merchant</Label>
+                      <Input id="p-username" placeholder="roti_berkah" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="p-password">Password Login Merchant</Label>
+                      <Input id="p-password" type="password" placeholder="••••••••" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required />
+                    </div>
+                  </>
+                )}
+
+                {isEdit && (
+                  <div className="space-y-2">
+                    <Label>Status Kemitraan</Label>
+                    <select 
+                      className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+                      value={form.status}
+                      onChange={e => setForm(f => ({ ...f, status: e.target.value as Partner["status"] }))}
+                    >
+                      <option value="Aktif">Aktif</option>
+                      <option value="Nonaktif">Nonaktif</option>
+                    </select>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 mt-4 border-t border-slate-100">
+            <div className="flex justify-end gap-3 pt-4 mt-4 border-t border-slate-100 shrink-0">
               <Button type="button" variant="outline" onClick={() => { setShowAddModal(false); setShowEditModal(false); setForm(initialForm); }} className="cursor-pointer">Batal</Button>
               <Button type="submit" disabled={submitting} className="bg-resurva-dark hover:bg-resurva-dark-light text-white font-bold cursor-pointer">
                 {submitting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}

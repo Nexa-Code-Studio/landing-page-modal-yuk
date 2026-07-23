@@ -224,6 +224,8 @@ const translations = {
   }
 };
 
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB limit
+
 export default function LandingPage() {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
 
@@ -1230,7 +1232,15 @@ export default function LandingPage() {
                               style={{ display: "none" }}
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
-                                if (file) setKtpFileName(file.name);
+                                if (file) {
+                                  if (file.size > MAX_FILE_SIZE) {
+                                    alert("Ukuran file terlalu besar. Maksimal 5 MB.");
+                                    e.target.value = "";
+                                    setKtpFileName("");
+                                    return;
+                                  }
+                                  setKtpFileName(file.name);
+                                }
                               }}
                             />
                             <UploadCloud className="w-6 h-6 text-slate-400 mx-auto mb-2 group-hover:text-[#0F3D2E] transition-colors" />
@@ -1249,7 +1259,15 @@ export default function LandingPage() {
                               style={{ display: "none" }}
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
-                                if (file) setNibTokoFileName(file.name);
+                                if (file) {
+                                  if (file.size > MAX_FILE_SIZE) {
+                                    alert("Ukuran file terlalu besar. Maksimal 5 MB.");
+                                    e.target.value = "";
+                                    setNibTokoFileName("");
+                                    return;
+                                  }
+                                  setNibTokoFileName(file.name);
+                                }
                               }}
                             />
                             <UploadCloud className="w-6 h-6 text-slate-400 mx-auto mb-2 group-hover:text-[#0F3D2E] transition-colors" />
@@ -1271,7 +1289,15 @@ export default function LandingPage() {
                               style={{ display: "none" }}
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
-                                if (file) setAktaFileName(file.name);
+                                if (file) {
+                                  if (file.size > MAX_FILE_SIZE) {
+                                    alert("Ukuran file terlalu besar. Maksimal 5 MB.");
+                                    e.target.value = "";
+                                    setAktaFileName("");
+                                    return;
+                                  }
+                                  setAktaFileName(file.name);
+                                }
                               }}
                             />
                             <UploadCloud className="w-6 h-6 text-slate-400 mx-auto mb-2 group-hover:text-[#0F3D2E] transition-colors" />
@@ -1290,7 +1316,15 @@ export default function LandingPage() {
                               style={{ display: "none" }}
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
-                                if (file) setNibEntFileName(file.name);
+                                if (file) {
+                                  if (file.size > MAX_FILE_SIZE) {
+                                    alert("Ukuran file terlalu besar. Maksimal 5 MB.");
+                                    e.target.value = "";
+                                    setNibEntFileName("");
+                                    return;
+                                  }
+                                  setNibEntFileName(file.name);
+                                }
                               }}
                             />
                             <UploadCloud className="w-6 h-6 text-slate-400 mx-auto mb-2 group-hover:text-[#0F3D2E] transition-colors" />
@@ -1309,7 +1343,15 @@ export default function LandingPage() {
                               style={{ display: "none" }}
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
-                                if (file) setNpwpFileName(file.name);
+                                if (file) {
+                                  if (file.size > MAX_FILE_SIZE) {
+                                    alert("Ukuran file terlalu besar. Maksimal 5 MB.");
+                                    e.target.value = "";
+                                    setNpwpFileName("");
+                                    return;
+                                  }
+                                  setNpwpFileName(file.name);
+                                }
                               }}
                             />
                             <UploadCloud className="w-6 h-6 text-slate-400 mx-auto mb-2 group-hover:text-[#0F3D2E] transition-colors" />

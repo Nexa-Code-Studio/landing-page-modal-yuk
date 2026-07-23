@@ -59,6 +59,7 @@ const TRANSLATIONS = {
     expiryLabel: "Expiry Date & Time",
     pcs: "pcs",
     seeMore: "See More",
+    allCategories: "All Categories",
   },
   id: {
     title: "Pemantau Kedaluwarsa Real-Time",
@@ -98,6 +99,7 @@ const TRANSLATIONS = {
     expiryLabel: "Tanggal & Jam Kedaluwarsa",
     pcs: "pcs",
     seeMore: "Lihat Selengkapnya",
+    allCategories: "Semua Kategori",
   }
 };
 
@@ -157,6 +159,7 @@ export default function InventoryPage() {
 
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
 
   const filteredLogs = stockLogs.filter(log => {
     const productName = products.find(p => p.id === log.productId)?.name ?? log.productId;
@@ -507,8 +510,14 @@ export default function InventoryPage() {
     }
   }, [searchQuery, enrichedProducts]);
 
-  // Filter products based on search query (product name, SKU, or batch tag)
+  // Filter products based on search query (product name, SKU, or batch tag) and category
   const filteredProducts = enrichedProducts.filter(product => {
+    // 1. Category Filter
+    if (selectedCategory !== "All" && product.category !== selectedCategory) {
+      return false;
+    }
+
+    // 2. Search Query Filter
     const query = searchQuery.toLowerCase().trim();
     if (!query) return true;
 
@@ -545,10 +554,6 @@ export default function InventoryPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={() => setIsPreviewOpen(true)} variant="outline" className="border-slate-350 text-slate-700 hover:bg-slate-50 rounded-xl">
-            <Smartphone className="w-4 h-4 mr-2" />
-            {t.previewApp}
-          </Button>
           <Button onClick={() => setIsCatModalOpen(true)} variant="outline" className="border-slate-350 text-slate-700 hover:bg-slate-50 rounded-xl">
             <Settings className="w-4 h-4 mr-2" />
             {t.manageCategories}
@@ -571,29 +576,50 @@ export default function InventoryPage() {
         />
       </div>
 
-      {/* Tabs */}
-      <div className="flex p-1 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-x-auto no-scrollbar w-max mb-6">
-        {[
-          { key: "Surplus", label: t.tabSurplus, icon: Layers },
-          { key: "Products", label: t.tabProducts, icon: Archive },
-          { key: "History", label: t.tabHistory, icon: History }
-        ].map(tab => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.key}
-              onClick={() => handleTabChange(tab.key as "Surplus" | "Products" | "History")}
-              className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
-                activeTab === tab.key 
-                  ? "bg-resurva-dark text-white shadow-md" 
-                  : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-              }`}
+      {/* Tabs & Category Filter Container */}
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 mb-6">
+        {/* Tabs */}
+        <div className="flex p-1 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-x-auto no-scrollbar w-max">
+          {[
+            { key: "Surplus", label: t.tabSurplus, icon: Layers },
+            { key: "Products", label: t.tabProducts, icon: Archive },
+            { key: "History", label: t.tabHistory, icon: History }
+          ].map(tab => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => handleTabChange(tab.key as "Surplus" | "Products" | "History")}
+                className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
+                  activeTab === tab.key 
+                    ? "bg-resurva-dark text-white shadow-md" 
+                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Category Select Dropdown */}
+        {activeTab !== "History" && (
+          <div className="w-full sm:w-56 shrink-0">
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-resurva-dark focus:border-transparent bg-white shadow-sm text-sm text-slate-700 font-bold cursor-pointer"
             >
-              <Icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          );
-        })}
+              <option value="All">{t.allCategories}</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Table Section */}

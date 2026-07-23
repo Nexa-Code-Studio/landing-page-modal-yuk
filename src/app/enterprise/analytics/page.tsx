@@ -15,8 +15,33 @@ import {
 } from "chart.js";
 import { Bar, Line } from "react-chartjs-2";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles, Bot, TrendingUp } from "lucide-react";
 import { apiClient, getStoredUser } from "@/lib/api";
+import { marked } from "marked";
+
+const renderAIContent = (content: string) => {
+  if (!content) return "";
+  try {
+    const parsed = marked.parse(content);
+    if (typeof parsed === "string") {
+      return parsed;
+    }
+    return content;
+  } catch (e) {
+    console.error("Error parsing markdown:", e);
+    return content;
+  }
+};
+
+const formatRecommendations = (text: string): string[] => {
+  if (!text) return [];
+  return text
+    .split(/\n+/)
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .map(line => line.replace(/^[\s-*•\d\.)]+/, "").trim())
+    .filter(line => line.length > 0);
+};
 
 // Register Chart.js components
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, Filler);
@@ -52,6 +77,11 @@ export default function AnalyticsPage() {
   const [isBranchOpen, setIsBranchOpen] = useState<boolean>(false);
   const [branchSearch, setBranchSearch] = useState<string>("");
   const branchDropdownRef = useRef<HTMLDivElement>(null);
+
+  const [loadingAiInsights, setLoadingAiInsights] = useState<boolean>(false);
+  const [aiInsights, setAiInsights] = useState<{
+    recommendation: string;
+  } | null>(null);
 
   // Click outside handler for dropdown
   useEffect(() => {
@@ -128,6 +158,26 @@ export default function AnalyticsPage() {
   useEffect(() => {
     fetchAnalytics();
   }, [fetchAnalytics]);
+
+  useEffect(() => {
+    async function fetchAiInsights() {
+      if (!businessId) return;
+      setLoadingAiInsights(true);
+      try {
+        const res = await apiClient.get<any>(
+          `/analytics/enterprise/ai-insights?business_id=${businessId}`
+        );
+        if (res) {
+          setAiInsights(res);
+        }
+      } catch (err) {
+        console.warn("Failed to fetch enterprise AI insights:", err);
+      } finally {
+        setLoadingAiInsights(false);
+      }
+    }
+    fetchAiInsights();
+  }, [businessId]);
 
   // Bar Chart Data (Perbandingan Cabang)
   const branchLabels = analyticsData?.branch_comparison?.map(b => b.branch_name) || ["Belum Ada Cabang"];
@@ -380,6 +430,18 @@ export default function AnalyticsPage() {
         </Card>
       </div>
 
+      <style>{`
+        .markdown-content strong {
+          font-weight: 700;
+        }
+        .markdown-content p {
+          margin-bottom: 0.5rem;
+        }
+        .markdown-content p:last-child {
+          margin-bottom: 0;
+        }
+      `}</style>
+
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card className="shadow-sm border-slate-200">
@@ -404,6 +466,41 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* AI Recommendations Container */}
+      <Card className="border-slate-200/60 shadow-md relative overflow-hidden bg-gradient-to-br from-indigo-50/20 via-white to-white border-l-4 border-l-indigo-600 mt-4">
+        <CardHeader className="pb-3 flex flex-row items-center gap-2">
+          <Sparkles className="w-5 h-5 text-indigo-650 animate-pulse" />
+          <div>
+            <CardTitle className="text-base font-extrabold text-slate-900 uppercase tracking-wider">
+              Analisis & Rekomendasi AI Resurva
+            </CardTitle>
+            <p className="text-xs text-slate-400 font-medium normal-case mt-0.5">
+              Rekomendasi taktis berbasis data dan AI keberlanjutan untuk seluruh cabang bisnis Anda.
+            </p>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-2">
+          {loadingAiInsights ? (
+            <div className="space-y-2 animate-pulse py-2">
+              <div className="h-4 bg-indigo-100/50 rounded-full w-5/6"></div>
+              <div className="h-4 bg-indigo-100/50 rounded-full w-4/6"></div>
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {formatRecommendations(aiInsights?.recommendation || "").map((rec, index) => (
+                <li key={index} className="flex items-start gap-2.5 text-slate-600 text-sm leading-relaxed">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 mt-2 shrink-0 animate-pulse" />
+                  <span 
+                    className="markdown-content" 
+                    dangerouslySetInnerHTML={{ __html: renderAIContent(rec) }} 
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

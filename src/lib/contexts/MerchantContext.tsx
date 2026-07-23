@@ -1,7 +1,8 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
-import { apiClient, getStoredUser } from "@/lib/api";
+import { apiClient, getStoredUser, getAccessToken } from "@/lib/api";
+import { playChime } from "@/lib/utils";
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 
@@ -306,7 +307,7 @@ interface MerchantContextProps {
   deleteCategory: (name: string) => void;
 }
 
-const MerchantContext = createContext<MerchantContextProps | undefined>(undefined);
+export const MerchantContext = createContext<MerchantContextProps | undefined>(undefined);
 
 // ─── Backend Order Interfaces & Mappers ───────────────────────────────────────
 
@@ -560,6 +561,87 @@ export function MerchantProvider({ children }: { children: ReactNode }) {
     fetchOrders();
     fetchActiveOrdersCount();
   }, [fetchProducts, fetchBatches, fetchStore, fetchOrders, fetchActiveOrdersCount]);
+
+  // Real-time Order Updates via Server-Sent Events (SSE)
+  useEffect(() => {
+    if (!storeId) return;
+    const token = getAccessToken();
+    if (!token) return;
+
+    const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://api.resurva.my.id/api/v1";
+    const sseUrl = `${BASE_URL}/orders/stream?store_id=${storeId}&token=${encodeURIComponent(token)}`;
+
+    console.log("[MerchantContext] Connecting to SSE stream:", sseUrl);
+    const eventSource = new EventSource(sseUrl);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("[MerchantContext] Received SSE event:", data);
+
+        if (data.event === "connected") {
+          console.log("[MerchantContext] SSE connection established successfully");
+          return;
+        }
+
+        const order = mapBackendOrder(data.order);
+        const backendStatus = data.order.status;
+
+        if (data.event === "order_created") {
+          // Prepend new order to global context state
+          setOrders(prev => [order, ...prev.filter(o => o.id !== order.id)]);
+
+          // Refresh order counts (for sidebar/tabs)
+          fetchActiveOrdersCount();
+
+          // Dispatch custom DOM event for orders page to consume
+          window.dispatchEvent(new CustomEvent("order_realtime_created", { detail: data.order }));
+
+          // ONLY trigger sound and desktop notification if already paid (e.g., cash/POS)
+          if (backendStatus === "paid") {
+            playChime();
+            if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+              new Notification("Pesanan Baru Masuk 🛍️", {
+                body: `${order.customerName || 'Pelanggan'} memesan senilai Rp${(order.totalAmount || 0).toLocaleString('id-ID')}`,
+                icon: "/favicon.ico"
+              });
+            }
+          }
+        } else if (data.event === "order_updated") {
+          // Update order in global context state
+          setOrders(prev => prev.map(o => o.id === order.id ? order : o));
+
+          // Refresh order counts
+          fetchActiveOrdersCount();
+
+          // Dispatch custom DOM event for orders page to consume
+          window.dispatchEvent(new CustomEvent("order_realtime_updated", { detail: data.order }));
+
+          // Trigger sound and desktop notification when transitioning/updating to PAID
+          if (backendStatus === "paid") {
+            playChime();
+            if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+              new Notification("Pesanan Telah Dibayar 🛍️", {
+                body: `${order.customerName || 'Pelanggan'} telah membayar pesanan senilai Rp${(order.totalAmount || 0).toLocaleString('id-ID')}`,
+                icon: "/favicon.ico"
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[MerchantContext] Failed to parse SSE message:", err);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.warn("[MerchantContext] SSE error occurred, browser will automatically reconnect:", err);
+    };
+
+    return () => {
+      console.log("[MerchantContext] Closing SSE stream");
+      eventSource.close();
+    };
+  }, [storeId, fetchActiveOrdersCount]);
 
   // ─── Product CRUD ────────────────────────────────────────────────────────────
 

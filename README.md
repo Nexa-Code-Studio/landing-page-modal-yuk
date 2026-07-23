@@ -1,5 +1,7 @@
 <div align="center">
 
+![Resurva Web Banner](public/assets/resurva-ecosystem-hero.png "Banner Dashboard Platform Bisnis Resurva yang Menampilkan Visualisasi Modern dan Ringkasan Analitik Dampak Karbon.")
+
 # Resurva
 
 **"Food waste is not just about emissions. It's about how much we value our food."**
@@ -13,7 +15,7 @@
 
 ---
 
-![Resurva Web Banner](public/assets/resurva-ecosystem-hero.png "Banner Dashboard Platform Bisnis Resurva yang Menampilkan Visualisasi Modern dan Ringkasan Analitik Dampak Karbon.")
+
 
 </div>
 
@@ -31,8 +33,7 @@
 11. [Demo](#-demo)
 12. [Panduan Penggunaan / User Guide](#-panduan-penggunaan--user-guide)
 13. [FAQ (Frequently Asked Questions)](#-faq-frequently-asked-questions)
-14. [Tim NexaCode](#-tim-nexacode)
-15. [Lisensi & Catatan Proyek](#-lisensi--catatan-proyek)
+14. [Lisensi & Catatan Proyek](#-lisensi--catatan-proyek)
 
 ---
 
@@ -288,25 +289,21 @@ Mitra merchant dapat mengakses menu pusat bantuan di dalam dashboard untuk berko
 
 ---
 
-## 👥 Tim NexaCode
-
-Proyek ini dirancang dan dikembangkan dengan bangga oleh tim **NexaCode** (Politeknik Negeri Malang):
-
-| Nama | Peran / Role | Akun GitHub / Kontak |
-| :--- | :--- | :--- |
-| **Ekya Muhammad H. F.** | Lead Developer / Backend Specialist | [GitHub](https://github.com/ekyaaa) / [LinkedIn](https://linkedin.com/in/ekyamhf) |
-| **Khoirotun Nisa'** | UI/UX Designer / Frontend Developer | [GitHub](https://github.com/KhoirotunNisa25) / [LinkedIn](https://linkedin.com/in/khoirotunnisa) |
-| **Nathanael Juan Gracedo** | Product Manager / Mobile Specialist | [GitHub](https://github.com/NathanaelGracedo) / [LinkedIn](https://linkedin.com/in/nathanjuangedo) |
-
----
-
 ## 📄 Lisensi & Catatan Proyek
 
-*   **Tujuan Kompetisi:** Platform ini dikembangkan secara khusus untuk ajang **BytesFest 2026** yang diselenggarakan oleh **Politeknik Negeri Malang**.
-*   **Lisensi:** Status lisensi repositori ini belum ditentukan secara publik (*Unlicensed*). Pengguna disarankan menambahkan file `LICENSE` resmi sebelum mendistribusikan atau menggunakan kode sumber ini untuk tujuan komersial di luar kompetisi.
+Sistem ini dikembangkan khusus sebagai bagian dari keikutsertaan kompetisi **BytesFest 2026** di Politeknik Negeri Malang oleh Tim **NexaCode**. Proyek ini bertujuan untuk menciptakan solusi nyata berbasis teknologi bagi kelestarian lingkungan dan ketahanan pangan nasional.
+
+- **Lisensi**: Proprietary (BytesFest 2026)
+- **Hak Cipta**: &copy; 2026 NexaCode. All rights reserved.
+- **Tautan Repositori Terkait**:
+  - [resurva_web (Smart Business Platform)](https://github.com/Nexa-Code-Studio/resurva_web)
+  - [resurva_backend (FastAPI core APIs)](https://github.com/Nexa-Code-Studio/resurva_backend)
+  - [resurva_mobile](https://github.com/Nexa-Code-Studio/resurva_mobile)
+
 
 ---
 
 <div align="center">
     Made with ❤️ by <b>NexaCode Team</b> for a Sustainable Future 🌿
 </div>
+

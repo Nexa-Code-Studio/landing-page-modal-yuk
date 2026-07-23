@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useContext, useMemo } from "react";
+import { MerchantContext } from "@/lib/contexts/MerchantContext";
 import { usePathname } from "next/navigation";
 import { Bell, Package, AlertTriangle, Truck, Menu } from "lucide-react";
 import { useLanguage } from "@/lib/contexts/LanguageContext";
@@ -41,15 +42,31 @@ interface SharedHeaderProps {
   pageTitleMapping: Record<string, string>;
   defaultTitle: string;
   onToggleSidebar?: () => void;
+  hideNotification?: boolean;
 }
 
-export function SharedHeader({ pageTitleMapping, defaultTitle, onToggleSidebar }: SharedHeaderProps) {
+export function SharedHeader({ pageTitleMapping, defaultTitle, onToggleSidebar, hideNotification = false }: SharedHeaderProps) {
   const pathname = usePathname();
   const [showNotifications, setShowNotifications] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { lang, toggleLanguage } = useLanguage();
+  const [notificationPermission, setNotificationPermission] = useState<string>("default");
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setNotificationPermission(Notification.permission);
+    }
+  }, []);
+
+  const requestNotificationPermission = async () => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    const res = await Notification.requestPermission();
+    setNotificationPermission(res);
+  };
 
   const t = TRANSLATIONS[lang];
+
+  const merchantCtx = useContext(MerchantContext);
 
   const mockNotifications = [
     { id: 1, type: "flash-sale", title: t.notif1Title, message: t.notif1Msg, time: t.notif1Time, icon: AlertTriangle, color: "text-red-500 bg-red-100" },
@@ -57,7 +74,47 @@ export function SharedHeader({ pageTitleMapping, defaultTitle, onToggleSidebar }
     { id: 3, type: "courier", title: t.notif3Title, message: t.notif3Msg, time: t.notif3Time, icon: Truck, color: "text-purple-500 bg-purple-100" }
   ];
 
-  const [unreadCount, setUnreadCount] = useState(mockNotifications.length);
+  // Dynamic notification list derived from merchant context orders if available
+  const notificationsList = useMemo(() => {
+    if (!merchantCtx || !merchantCtx.orders) {
+      return mockNotifications.map(n => ({
+        id: n.id.toString(),
+        title: n.title,
+        message: n.message,
+        time: n.time,
+        icon: n.icon,
+        color: n.color,
+        onClick: () => {}
+      }));
+    }
+
+    return merchantCtx.orders
+      .filter(o => o.status === "Menunggu Konfirmasi" || o.status === "Disiapkan")
+      .slice(0, 5)
+      .map(o => {
+        const isNew = o.status === "Menunggu Konfirmasi";
+        return {
+          id: o.id,
+          title: isNew ? (lang === "en" ? "New Order Received" : "Pesanan Baru Masuk") : (lang === "en" ? "Preparing Order" : "Pesanan Sedang Disiapkan"),
+          message: `${o.customerName}: ${o.items.map(i => `${i.qty}x ${i.name}`).join(", ")}`,
+          time: new Date(o.createdAt).toLocaleTimeString("id-ID", { hour: '2-digit', minute: '2-digit' }),
+          icon: Package,
+          color: isNew ? "text-blue-500 bg-blue-100 animate-pulse" : "text-amber-500 bg-amber-100",
+          onClick: () => {
+            if (typeof window !== "undefined") {
+              window.location.href = "/merchant/orders";
+            }
+          }
+        };
+      });
+  }, [merchantCtx, merchantCtx?.orders, lang, t]);
+
+  const unreadCount = useMemo(() => {
+    if (!merchantCtx || !merchantCtx.orders) {
+      return mockNotifications.length;
+    }
+    return merchantCtx.orders.filter(o => o.status === "Menunggu Konfirmasi").length;
+  }, [merchantCtx, merchantCtx?.orders]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -72,9 +129,6 @@ export function SharedHeader({ pageTitleMapping, defaultTitle, onToggleSidebar }
 
   const handleNotificationClick = () => {
     setShowNotifications(!showNotifications);
-    if (!showNotifications) {
-      setUnreadCount(0);
-    }
   };
 
   const getPageTitle = () => {
@@ -113,44 +167,76 @@ export function SharedHeader({ pageTitleMapping, defaultTitle, onToggleSidebar }
         </button>
 
         {/* Notifications */}
-        <button 
-          onClick={handleNotificationClick}
-          className="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors relative"
-        >
-          <Bell className="w-5 h-5" />
-          {unreadCount > 0 && (
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-          )}
-        </button>
+        {!hideNotification && (
+          <>
+            <button 
+              onClick={handleNotificationClick}
+              className="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors relative"
+            >
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+              )}
+            </button>
 
-        {/* Notification Dropdown */}
-        {showNotifications && (
-          <div className="absolute top-12 right-0 w-80 bg-white border border-slate-200 shadow-lg rounded-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-              <h3 className="font-semibold text-slate-800">{t.notificationsTitle}</h3>
-              <span className="text-xs text-resurva-dark-light bg-resurva-green-muted px-2 py-1 rounded-full font-medium">{t.newBadge}</span>
-            </div>
-            <div className="max-h-80 overflow-y-auto">
-              {mockNotifications.map((notif) => {
-                const Icon = notif.icon;
-                return (
-                  <div key={notif.id} className="p-4 border-b border-slate-100 hover:bg-slate-50 transition-colors flex gap-3 items-start cursor-pointer">
-                    <div className={`p-2 rounded-lg shrink-0 ${notif.color}`}>
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-semibold text-slate-800">{notif.title}</h4>
-                      <p className="text-xs text-slate-500 mt-1 leading-relaxed">{notif.message}</p>
-                      <span className="text-[10px] text-slate-400 mt-2 block">{notif.time}</span>
-                    </div>
+            {/* Notification Dropdown */}
+            {showNotifications && (
+              <div className="absolute top-12 right-0 w-80 bg-white border border-slate-200 shadow-lg rounded-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                  <h3 className="font-semibold text-slate-800">{t.notificationsTitle}</h3>
+                  <span className="text-xs text-resurva-dark-light bg-resurva-green-muted px-2 py-1 rounded-full font-medium">{t.newBadge}</span>
+                </div>
+                {notificationPermission !== "granted" && (
+                  <div className="p-3 bg-slate-50 border-b border-slate-100 flex flex-col gap-2">
+                    <p className="text-xs text-slate-600 leading-normal">
+                      {notificationPermission === "denied"
+                        ? "Notifikasi diblokir oleh browser. Harap izinkan melalui pengaturan situs Anda."
+                        : "Aktifkan notifikasi desktop agar tidak melewatkan pesanan masuk."}
+                    </p>
+                    {notificationPermission !== "denied" && (
+                      <button
+                        onClick={requestNotificationPermission}
+                        className="w-full py-1.5 px-3 bg-resurva-dark hover:bg-resurva-dark-light text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 font-sans"
+                      >
+                        <Bell className="w-3.5 h-3.5" />
+                        Aktifkan Notifikasi Desktop
+                      </button>
+                    )}
                   </div>
-                );
-              })}
-            </div>
-            <div className="p-3 text-center border-t border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors">
-              <span className="text-sm text-resurva-dark-light font-medium">{t.markAllRead}</span>
-            </div>
-          </div>
+                )}
+                <div className="max-h-80 overflow-y-auto">
+                  {notificationsList.length === 0 ? (
+                    <div className="p-8 text-center text-slate-400 text-sm">
+                      {lang === "en" ? "No new notifications" : "Tidak ada notifikasi baru"}
+                    </div>
+                  ) : (
+                    notificationsList.map((notif) => {
+                      const Icon = notif.icon;
+                      return (
+                        <div 
+                          key={notif.id} 
+                          onClick={notif.onClick}
+                          className="p-4 border-b border-slate-100 hover:bg-slate-50 transition-colors flex gap-3 items-start cursor-pointer"
+                        >
+                          <div className={`p-2 rounded-lg shrink-0 ${notif.color}`}>
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-semibold text-slate-800">{notif.title}</h4>
+                            <p className="text-xs text-slate-500 mt-1 leading-relaxed">{notif.message}</p>
+                            <span className="text-[10px] text-slate-400 mt-2 block">{notif.time}</span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+                <div className="p-3 text-center border-t border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors">
+                  <span className="text-sm text-resurva-dark-light font-medium">{t.markAllRead}</span>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </header>

@@ -104,6 +104,7 @@ export default function EnterpriseLayoutClient({
           pageTitleMapping={titleMapping} 
           defaultTitle="Enterprise Dashboard" 
           onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+          hideNotification
         />
         <main className="flex-1 overflow-y-auto p-4 md:p-8">{children}</main>
       </div>

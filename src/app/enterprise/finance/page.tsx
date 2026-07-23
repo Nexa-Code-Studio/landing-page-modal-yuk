@@ -15,7 +15,7 @@ import {
 } from "chart.js";
 import { Bar } from "react-chartjs-2";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, Wallet, Download, Activity, List, Plus, Search, ChevronLeft, ChevronRight, X, ArrowUpRight, ArrowDownRight, Loader2 } from "lucide-react";
+import { DollarSign, Wallet, Activity, List, Plus, Search, ChevronLeft, ChevronRight, X, ArrowUpRight, ArrowDownRight, Loader2 } from "lucide-react";
 import { apiClient, getStoredUser } from "@/lib/api";
 
 ChartJS.register(
@@ -170,9 +170,6 @@ export default function EnterpriseFinancePage() {
     }
   };
 
-  const handleExport = () => {
-    alert("Menyiapkan Laporan Keuangan Terpadu & Metrik Keberlanjutan (SDG)... Memulai unduhan PDF.");
-  };
 
   // Cashflow Macro Data formatting: Defaults to 0 if no data
   const hasCashflowData = analytics?.cashflow_monthly && analytics.cashflow_monthly.length > 0;
@@ -230,14 +227,6 @@ export default function EnterpriseFinancePage() {
           </h1>
           <p className="text-slate-500 mt-1">Pantau aliran kas makro perusahaan dan transaksi tingkat pusat.</p>
         </div>
-        
-        <button 
-          onClick={handleExport}
-          className="flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-700 px-5 py-2.5 rounded-xl font-bold shadow-sm hover:bg-slate-50 transition-colors cursor-pointer"
-        >
-          <Download className="w-4 h-4" />
-          Export Laporan (SDG & Keuangan)
-        </button>
       </div>
 
       {/* Metrics Row */}

@@ -320,6 +320,111 @@ export default function OrdersPage() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, [activeTab, loadNextPage]);
 
+  // Listen to SSE order creation/update custom DOM events
+  useEffect(() => {
+    const handleRealtimeCreated = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const backendOrder = customEvent.detail;
+      const order = mapBackendOrder(backendOrder);
+
+      // Determine target tab
+      let targetTab: "Baru" | "Berlangsung" | "Selesai" = "Baru";
+      if (order.status === "Disiapkan" || order.status === "Siap Diambil") {
+        targetTab = "Berlangsung";
+      } else if (order.status === "Selesai" || order.status === "Dibatalkan") {
+        targetTab = "Selesai";
+      }
+
+      setTabData(prev => {
+        // Prevent duplicate entries
+        const exists = prev[targetTab].items.some(o => o.id === order.id);
+        if (exists) return prev;
+
+        const newItems = [order, ...prev[targetTab].items];
+        // Sort items by creation time descending
+        newItems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        return {
+          ...prev,
+          [targetTab]: {
+            ...prev[targetTab],
+            items: newItems,
+            total: prev[targetTab].total + 1
+          }
+        };
+      });
+    };
+
+    const handleRealtimeUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const backendOrder = customEvent.detail;
+      const order = mapBackendOrder(backendOrder);
+
+      // If the details modal is currently open for this updated order, update it dynamically
+      setSelectedOrderModal(current => {
+        if (current && current.id === order.id) {
+          return order;
+        }
+        return current;
+      });
+
+      // Find which tab the order belongs to now
+      let targetTab: "Baru" | "Berlangsung" | "Selesai" = "Baru";
+      if (order.status === "Disiapkan" || order.status === "Siap Diambil") {
+        targetTab = "Berlangsung";
+      } else if (order.status === "Selesai" || order.status === "Dibatalkan") {
+        targetTab = "Selesai";
+      }
+
+      setTabData(prev => {
+        const updatedTabs = { ...prev };
+        let foundAndRemoved = false;
+
+        // Remove the order from any previous tab it belonged to
+        for (const tabKey of ["Baru", "Berlangsung", "Selesai"] as const) {
+          const originalLength = updatedTabs[tabKey].items.length;
+          const filteredItems = updatedTabs[tabKey].items.filter(o => o.id !== order.id);
+          
+          if (filteredItems.length < originalLength) {
+            foundAndRemoved = true;
+            updatedTabs[tabKey] = {
+              ...updatedTabs[tabKey],
+              items: filteredItems,
+              total: Math.max(0, updatedTabs[tabKey].total - 1)
+            };
+          }
+        }
+
+        // Add/update in the target tab
+        const existsInTarget = updatedTabs[targetTab].items.some(o => o.id === order.id);
+        if (!existsInTarget) {
+          const newItems = [order, ...updatedTabs[targetTab].items];
+          newItems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          updatedTabs[targetTab] = {
+            ...updatedTabs[targetTab],
+            items: newItems,
+            total: updatedTabs[targetTab].total + 1
+          };
+        } else {
+          updatedTabs[targetTab] = {
+            ...updatedTabs[targetTab],
+            items: updatedTabs[targetTab].items.map(o => o.id === order.id ? order : o)
+          };
+        }
+
+        return updatedTabs;
+      });
+    };
+
+    window.addEventListener("order_realtime_created", handleRealtimeCreated);
+    window.addEventListener("order_realtime_updated", handleRealtimeUpdated);
+
+    return () => {
+      window.removeEventListener("order_realtime_created", handleRealtimeCreated);
+      window.removeEventListener("order_realtime_updated", handleRealtimeUpdated);
+    };
+  }, []);
+
   const filteredOrders = useMemo(() => {
     const currentItems = [...tabData[activeTab].items];
     currentItems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());

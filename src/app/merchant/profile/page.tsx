@@ -502,6 +502,11 @@ export default function MerchantProfilePage() {
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      if (file.size > 5 * 1024 * 1024) {
+        alert(lang === "en" ? "Logo size is too large. Maximum is 5 MB." : "Ukuran logo terlalu besar. Batas maksimum adalah 5 MB.");
+        e.target.value = "";
+        return;
+      }
       setLogoFile(file);
       const url = URL.createObjectURL(file);
       setLogoUrl(url);
@@ -511,6 +516,11 @@ export default function MerchantProfilePage() {
   const handleBannerUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      if (file.size > 5 * 1024 * 1024) {
+        alert(lang === "en" ? "Banner size is too large. Maximum is 5 MB." : "Ukuran banner terlalu besar. Batas maksimum adalah 5 MB.");
+        e.target.value = "";
+        return;
+      }
       setBannerFile(file);
       const url = URL.createObjectURL(file);
       setBannerUrl(url);

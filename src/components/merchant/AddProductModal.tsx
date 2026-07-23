@@ -353,6 +353,11 @@ export function AddProductModal({ isOpen, onClose, productToEdit }: AddProductMo
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      if (file.size > 5 * 1024 * 1024) {
+        alert(lang === "en" ? "File size is too large. Maximum is 5 MB." : "Ukuran file terlalu besar. Batas maksimum adalah 5 MB.");
+        e.target.value = "";
+        return;
+      }
       setIsUploading(true);
       try {
         const res = await apiClient.uploadFile("/products/upload-image", file);
