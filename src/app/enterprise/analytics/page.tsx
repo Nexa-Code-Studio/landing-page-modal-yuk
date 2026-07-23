@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -46,6 +46,25 @@ export default function AnalyticsPage() {
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [selectedBranch, setSelectedBranch] = useState<string>("all");
+  const [selectedPeriod, setSelectedPeriod] = useState<string>("6bulan");
+  const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
+  const [isBranchOpen, setIsBranchOpen] = useState<boolean>(false);
+  const [branchSearch, setBranchSearch] = useState<string>("");
+  const branchDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Click outside handler for dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (branchDropdownRef.current && !branchDropdownRef.current.contains(event.target as Node)) {
+        setIsBranchOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   // Resolve Business Context
   useEffect(() => {
@@ -67,6 +86,24 @@ export default function AnalyticsPage() {
     init();
   }, []);
 
+  // Fetch Branches List
+  useEffect(() => {
+    async function fetchBranches() {
+      if (!businessId) return;
+      try {
+        const res = await apiClient.get<{ items: { id: string; name: string }[] }>(
+          `/stores?business_id=${businessId}&page_size=100`
+        );
+        if (res && res.items) {
+          setBranches(res.items);
+        }
+      } catch (err) {
+        console.warn("Failed to load branches list:", err);
+      }
+    }
+    fetchBranches();
+  }, [businessId]);
+
   // Fetch Analytics Data
   const fetchAnalytics = useCallback(async () => {
     if (!businessId) {
@@ -75,16 +112,18 @@ export default function AnalyticsPage() {
     }
     setLoading(true);
     try {
-      const res = await apiClient.get<AnalyticsData>(
-        `/analytics/enterprise/waste-impact?business_id=${businessId}`
-      );
+      let url = `/analytics/enterprise/waste-impact?business_id=${businessId}&period=${selectedPeriod}`;
+      if (selectedBranch !== "all") {
+        url += `&store_id=${selectedBranch}`;
+      }
+      const res = await apiClient.get<AnalyticsData>(url);
       setAnalyticsData(res);
     } catch (err) {
       console.warn("Error fetching waste impact analytics:", err);
     } finally {
       setLoading(false);
     }
-  }, [businessId]);
+  }, [businessId, selectedBranch, selectedPeriod]);
 
   useEffect(() => {
     fetchAnalytics();
@@ -155,10 +194,22 @@ export default function AnalyticsPage() {
   const portions = analyticsData?.portions_saved || 0;
   const co2e = analyticsData?.co2e_reduced_kg || 0;
 
+  const getPeriodLabel = () => {
+    switch (selectedPeriod) {
+      case "tahun_ini":
+        return "Tahun Ini";
+      case "semua":
+        return "Semua Waktu";
+      case "6bulan":
+      default:
+        return "6 Bulan Terakhir";
+    }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-10">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-800 flex items-center gap-2">
             Analitik Sampah & Dampak
@@ -167,6 +218,114 @@ export default function AnalyticsPage() {
           <p className="text-slate-500 text-sm mt-1">
             Pantau perbandingan limbah makanan, emisi karbon tereduksi, dan penghematan finansial antar cabang.
           </p>
+        </div>
+
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Branch Filter */}
+          <div className="flex flex-col gap-1" ref={branchDropdownRef}>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cabang</span>
+            <div className="relative">
+              {/* Dropdown Button */}
+              <button
+                type="button"
+                onClick={() => setIsBranchOpen(!isBranchOpen)}
+                className="h-10 pl-3 pr-10 rounded-xl border border-slate-200 bg-white text-slate-700 font-medium text-sm transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-left cursor-pointer shadow-sm hover:border-slate-300 min-w-[200px] flex items-center justify-between w-full"
+              >
+                <span>
+                  {selectedBranch === "all"
+                    ? "Semua Cabang"
+                    : branches.find((b) => b.id === selectedBranch)?.name || "Pilih Cabang"}
+                </span>
+                <div className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 pointer-events-none">
+                  <svg className={`w-4 h-4 transition-transform duration-200 ${isBranchOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </button>
+
+              {/* Dropdown Menu */}
+              {isBranchOpen && (
+                <div className="absolute right-0 mt-1.5 w-full min-w-[220px] rounded-xl border border-slate-200 bg-white shadow-lg z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                  {/* Search Input */}
+                  <div className="p-2 border-b border-slate-100">
+                    <input
+                      type="text"
+                      placeholder="Cari cabang..."
+                      value={branchSearch}
+                      onChange={(e) => setBranchSearch(e.target.value)}
+                      className="w-full h-8 px-2.5 rounded-lg border border-slate-200 text-xs focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                    />
+                  </div>
+
+                  {/* Options List */}
+                  <div className="max-h-60 overflow-y-auto py-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedBranch("all");
+                        setIsBranchOpen(false);
+                        setBranchSearch("");
+                      }}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 transition-colors ${
+                        selectedBranch === "all" ? "text-indigo-600 font-semibold bg-indigo-50/40" : "text-slate-700"
+                      }`}
+                    >
+                      Semua Cabang
+                    </button>
+                    {branches
+                      .filter((b) =>
+                        b.name.toLowerCase().includes(branchSearch.toLowerCase())
+                      )
+                      .map((b) => (
+                        <button
+                          key={b.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedBranch(b.id);
+                            setIsBranchOpen(false);
+                            setBranchSearch("");
+                          }}
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 transition-colors ${
+                            selectedBranch === b.id ? "text-indigo-600 font-semibold bg-indigo-50/40" : "text-slate-700"
+                          }`}
+                        >
+                          {b.name}
+                        </button>
+                      ))}
+                    {branches.filter((b) =>
+                      b.name.toLowerCase().includes(branchSearch.toLowerCase())
+                    ).length === 0 && (
+                      <div className="px-3 py-2 text-xs text-slate-400 text-center">
+                        Tidak ada cabang ditemukan
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Period Filter */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Periode</span>
+            <div className="relative">
+              <select
+                value={selectedPeriod}
+                onChange={(e) => setSelectedPeriod(e.target.value)}
+                className="h-10 pl-3 pr-10 rounded-xl border border-slate-200 bg-white text-slate-700 font-medium text-sm transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none appearance-none cursor-pointer shadow-sm hover:border-slate-300 min-w-[140px]"
+              >
+                <option value="6bulan">6 Bulan Terakhir</option>
+                <option value="tahun_ini">Tahun Ini</option>
+                <option value="semua">Semua Waktu</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -237,7 +396,7 @@ export default function AnalyticsPage() {
         <Card className="shadow-sm border-slate-200">
           <CardHeader>
             <CardTitle className="text-lg font-bold text-slate-800">
-              Tren Penurunan Emisi Karbon (6 Bulan Terakhir)
+              Tren Penurunan Emisi Karbon ({getPeriodLabel()})
             </CardTitle>
           </CardHeader>
           <CardContent>

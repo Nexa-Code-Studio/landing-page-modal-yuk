@@ -90,6 +90,11 @@ export interface Order {
   driverInfo?: { name: string; licensePlate: string };
   createdAt: string;
   dailyCode?: string;
+  totalPrice?: number;
+  totalDiscount?: number;
+  appliedVoucherCode?: string | null;
+  appliedVoucherName?: string | null;
+  voucherDiscount?: number;
 }
 
 // ─── Backend response shapes (matching FastAPI schemas) ───────────────────────
@@ -330,6 +335,9 @@ export interface BackendOrder {
   order_type?: string;
   notes?: string;
   daily_code?: string;
+  applied_voucher_code?: string | null;
+  applied_voucher_name?: string | null;
+  voucher_discount?: number;
 }
 
 export function mapBackendOrderStatus(status: string): OrderStatus {
@@ -401,6 +409,11 @@ export function mapBackendOrder(bo: BackendOrder): Order {
     driverInfo: driverInfo,
     createdAt: bo.created_at,
     dailyCode: bo.daily_code,
+    totalPrice: bo.total_price,
+    totalDiscount: bo.total_discount,
+    appliedVoucherCode: bo.applied_voucher_code,
+    appliedVoucherName: bo.applied_voucher_name,
+    voucherDiscount: bo.voucher_discount ?? 0,
   };
 }
 

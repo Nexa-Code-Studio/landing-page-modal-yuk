@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -18,6 +18,7 @@ import { Line, Bar, Doughnut } from "react-chartjs-2";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useMerchantContext } from "@/lib/contexts/MerchantContext";
 import { apiClient } from "@/lib/api";
+import { marked } from "marked";
 import { 
   Sparkles, MessageSquare, Send, X, Bot, RefreshCw, ChevronLeft, ChevronRight, ChevronDown, Filter,
   Wallet, TrendingUp, PieChart, Activity, ArrowUpRight, ArrowDownRight, DollarSign, List, BadgeDollarSign, Plus, Search,
@@ -147,6 +148,20 @@ const TRANSLATIONS = {
 
 import { useLanguage } from "@/lib/contexts/LanguageContext";
 
+const renderAIContent = (content: string) => {
+  if (!content) return "";
+  try {
+    const parsed = marked.parse(content);
+    if (typeof parsed === "string") {
+      return parsed;
+    }
+    return content;
+  } catch (e) {
+    console.error("Error parsing markdown:", e);
+    return content;
+  }
+};
+
 export default function StoreAnalyticsPage() {
   const { storeId } = useMerchantContext();
   const { lang } = useLanguage();
@@ -154,7 +169,12 @@ export default function StoreAnalyticsPage() {
   
   // Charts state
   const [timeFrame, setTimeFrame] = useState<"weekly" | "monthly">("weekly");
-  const [dateOffset, setDateOffset] = useState(0);
+  const [dateOffset, setDateOffset] = useState(() => {
+    const today = new Date();
+    const baseDate = new Date(2026, 5, 26);
+    const diffDays = (today.getTime() - baseDate.getTime()) / (1000 * 60 * 60 * 24);
+    return Math.floor(diffDays / 7);
+  });
 
   // Transactions State
   const [txSearch, setTxSearch] = useState("");
@@ -211,6 +231,12 @@ export default function StoreAnalyticsPage() {
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [reviewsSummary, setReviewsSummary] = useState<{ summary: string; avgRating: number; totalReviews: number } | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [aiInsights, setAiInsights] = useState<{
+    sales_stock_optimization: string;
+    surplus_conversion: string;
+    customer_sentiment: string;
+  } | null>(null);
+  const [loadingAiInsights, setLoadingAiInsights] = useState(false);
 
   // Loading states
   const [loadingFinance, setLoadingFinance] = useState(false);
@@ -218,25 +244,48 @@ export default function StoreAnalyticsPage() {
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
 
   // Fetch live financial analytics
-  useEffect(() => {
+  const fetchFinance = useCallback(async () => {
     if (!storeId) return;
-    const fetchFinance = async () => {
-      setLoadingFinance(true);
-      try {
-        const res = await apiClient.get<any>(
-          `/analytics/finance?store_id=${storeId}&timeframe=${timeFrame}&tx_type=${txFilter}`
-        );
-        if (res) {
-          setFinancialData(res);
-        }
-      } catch (err) {
-        console.error("Failed to fetch finance analytics:", err);
-      } finally {
-        setLoadingFinance(false);
+    setLoadingFinance(true);
+    try {
+      const res = await apiClient.get<any>(
+        `/analytics/finance?store_id=${storeId}&timeframe=${timeFrame}&date_offset=${dateOffset}&tx_type=${txFilter}`
+      );
+      if (res) {
+        setFinancialData(res);
       }
-    };
+    } catch (err) {
+      console.error("Failed to fetch finance analytics:", err);
+    } finally {
+      setLoadingFinance(false);
+    }
+  }, [storeId, timeFrame, dateOffset, txFilter]);
+
+  useEffect(() => {
     fetchFinance();
-  }, [storeId, timeFrame, txFilter]);
+  }, [fetchFinance]);
+
+  // Fetch AI insights
+  const fetchAiInsights = useCallback(async () => {
+    if (!storeId) return;
+    setLoadingAiInsights(true);
+    try {
+      const res = await apiClient.get<any>(
+        `/analytics/ai-insights?store_id=${storeId}`
+      );
+      if (res) {
+        setAiInsights(res);
+      }
+    } catch (err) {
+      console.error("Failed to fetch AI insights:", err);
+    } finally {
+      setLoadingAiInsights(false);
+    }
+  }, [storeId]);
+
+  useEffect(() => {
+    fetchAiInsights();
+  }, [fetchAiInsights]);
 
   // Fetch live sales analytics
   useEffect(() => {
@@ -490,25 +539,55 @@ export default function StoreAnalyticsPage() {
     }
   };
 
-  const handleTxSubmit = (e: React.FormEvent) => {
+  const handleTxSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!txForm.desc || !txForm.amount) return;
-    
-    const newTx = {
-      id: Date.now(),
-      type: txForm.type,
-      category: txForm.category,
-      desc: txForm.desc,
-      amount: parseInt(txForm.amount),
-      date: txForm.date + " " + new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
-    };
-    
-    setTransactions([newTx, ...transactions]);
-    setTxModalOpen(false);
-    setTxForm({ ...txForm, desc: "", amount: "" });
+    if (!storeId) return;
+
+    try {
+      const categoryMap: Record<string, string> = {
+        "Modal/Sponsor": "catCapital",
+        "Penjualan POS": "catSales",
+        "Penjualan Lainnya": "catOthers",
+        "Tagihan": "catUtilities",
+        "Bahan Baku": "catIngredients",
+        "Gaji Karyawan": "catSalary",
+        "Lainnya": "catOthers"
+      };
+
+      const payload = {
+        wallet_type: "offline",
+        type: txForm.type === "in" ? "credit" : "debit",
+        category: categoryMap[txForm.category] || "catOthers",
+        amount: parseInt(txForm.amount),
+        note: txForm.desc.trim() || (txForm.type === "in" ? "Pemasukan Manual" : "Pengeluaran Manual"),
+        transaction_date: txForm.date ? new Date(txForm.date).toISOString() : new Date().toISOString()
+      };
+
+      await apiClient.post(`/wallets/store/${storeId}/transactions`, payload);
+      
+      const newTx = {
+        id: Date.now(),
+        type: txForm.type,
+        category: txForm.category,
+        desc: txForm.desc,
+        amount: parseInt(txForm.amount),
+        date: txForm.date + " " + new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+      };
+      
+      setTransactions([newTx, ...transactions]);
+      setTxModalOpen(false);
+      setTxForm({ ...txForm, desc: "", amount: "" });
+      
+      fetchFinance();
+    } catch (err: any) {
+      alert(`Gagal mencatat transaksi: ${err.message}`);
+    }
   };
 
-  const currentCategories = financialData?.category_breakdown ?? [];
+  const currentCategories = (financialData?.category_breakdown ?? []).filter(item => 
+    getCategoryLabel(item.category).toLowerCase().includes(txSearch.toLowerCase())
+  );
 
   // Rendering Tabs
   const renderFinanceTab = () => (
@@ -706,96 +785,8 @@ export default function StoreAnalyticsPage() {
               Total Penjualan Produk per SKU (Qty)
             </CardTitle>
 
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center bg-slate-100 p-1.5 rounded-xl border min-w-[150px]">
-                {timeFrame === "weekly" ? (
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="month"
-                      className="bg-transparent border-none text-xs font-bold text-slate-700 focus:outline-none cursor-pointer text-center w-28"
-                      value={(() => {
-                        const baseDate = new Date(2026, 5, 26);
-                        baseDate.setDate(baseDate.getDate() + dateOffset * 7);
-                        const yyyy = baseDate.getFullYear();
-                        const mm = String(baseDate.getMonth() + 1).padStart(2, '0');
-                        return `${yyyy}-${mm}`;
-                      })()}
-                      onChange={(e) => {
-                        if (!e.target.value) return;
-                        const [newYear, newMonth] = e.target.value.split('-').map(Number);
-                        const baseDate = new Date(2026, 5, 26);
-                        baseDate.setDate(baseDate.getDate() + dateOffset * 7);
-                        const currentWeekNum = Math.ceil(baseDate.getDate() / 7);
-                        const targetWeek = Math.min(currentWeekNum, 4);
-                        
-                        const diffMonths = (newYear - 2026) * 12 + (newMonth - 6); // 6 is June
-                        const newOffset = diffMonths * 4 + (targetWeek - 4);
-                        setDateOffset(newOffset);
-                      }}
-                    />
-                    <span className="text-slate-300">/</span>
-                    <select
-                      className="bg-transparent border-none text-xs font-bold text-slate-700 focus:outline-none cursor-pointer appearance-none"
-                      value={(() => {
-                        const baseDate = new Date(2026, 5, 26);
-                        baseDate.setDate(baseDate.getDate() + dateOffset * 7);
-                        return Math.min(Math.ceil(baseDate.getDate() / 7), 4).toString();
-                      })()}
-                      onChange={(e) => {
-                        const newWeek = parseInt(e.target.value);
-                        const baseDate = new Date(2026, 5, 26);
-                        baseDate.setDate(baseDate.getDate() + dateOffset * 7);
-                        const currentWeekNum = Math.min(Math.ceil(baseDate.getDate() / 7), 4);
-                        const weekDiff = newWeek - currentWeekNum;
-                        setDateOffset(dateOffset + weekDiff);
-                      }}
-                    >
-                      <option value="1">Mg 1</option>
-                      <option value="2">Mg 2</option>
-                      <option value="3">Mg 3</option>
-                      <option value="4">Mg 4</option>
-                    </select>
-                  </div>
-                ) : (
-                  <input
-                    type="month"
-                    className="bg-transparent border-none text-xs font-bold text-slate-700 focus:outline-none cursor-pointer w-full text-center"
-                    value={(() => {
-                      const baseDate = new Date(2026, 5, 1);
-                      baseDate.setMonth(baseDate.getMonth() + dateOffset);
-                      const yyyy = baseDate.getFullYear();
-                      const mm = String(baseDate.getMonth() + 1).padStart(2, '0');
-                      return `${yyyy}-${mm}`;
-                    })()}
-                    onChange={(e) => {
-                      if (!e.target.value) return;
-                      const [newYear, newMonth] = e.target.value.split('-').map(Number);
-                      const baseDate = new Date(2026, 5, 1);
-                      const diffMonths = (newYear - baseDate.getFullYear()) * 12 + (newMonth - (baseDate.getMonth() + 1));
-                      setDateOffset(diffMonths);
-                    }}
-                  />
-                )}
-              </div>
-
-              <div className="flex bg-slate-100 p-1 rounded-xl">
-                <button
-                  onClick={() => { setTimeFrame("weekly"); setDateOffset(0); }}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    timeFrame === "weekly" ? "bg-white text-resurva-dark shadow-xs" : "text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  {t.weekly}
-                </button>
-                <button
-                  onClick={() => { setTimeFrame("monthly"); setDateOffset(0); }}
-                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    timeFrame === "monthly" ? "bg-white text-resurva-dark shadow-xs" : "text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  {t.monthly}
-                </button>
-              </div>
+            <div className="text-xs font-bold text-slate-500 bg-slate-100/80 px-3 py-1.5 rounded-xl border border-slate-200 shadow-xs">
+              {getRangeText()}
             </div>
           </div>
         </CardHeader>
@@ -1011,7 +1002,19 @@ export default function StoreAnalyticsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-slate-600 text-sm leading-relaxed">{t.insight1Desc}</p>
+            {loadingAiInsights ? (
+              <div className="space-y-2 animate-pulse py-2">
+                <div className="h-4 bg-indigo-100/50 rounded-full w-5/6"></div>
+                <div className="h-4 bg-indigo-100/50 rounded-full w-4/6"></div>
+              </div>
+            ) : (
+              <div 
+                className="text-slate-600 text-sm leading-relaxed markdown-content"
+                dangerouslySetInnerHTML={{ 
+                  __html: renderAIContent(aiInsights?.sales_stock_optimization || t.insight1Desc) 
+                }}
+              />
+            )}
           </CardContent>
         </Card>
 
@@ -1023,7 +1026,19 @@ export default function StoreAnalyticsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-slate-600 text-sm leading-relaxed">{t.insight2Desc}</p>
+            {loadingAiInsights ? (
+              <div className="space-y-2 animate-pulse py-2">
+                <div className="h-4 bg-emerald-100/50 rounded-full w-5/6"></div>
+                <div className="h-4 bg-emerald-100/50 rounded-full w-4/6"></div>
+              </div>
+            ) : (
+              <div 
+                className="text-slate-600 text-sm leading-relaxed markdown-content"
+                dangerouslySetInnerHTML={{ 
+                  __html: renderAIContent(aiInsights?.surplus_conversion || t.insight2Desc) 
+                }}
+              />
+            )}
           </CardContent>
         </Card>
       </div>
@@ -1049,13 +1064,18 @@ export default function StoreAnalyticsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {loadingSummary ? (
+            {loadingSummary || loadingAiInsights ? (
               <div className="space-y-2 animate-pulse py-2">
                 <div className="h-4 bg-blue-100/50 rounded-full w-5/6"></div>
                 <div className="h-4 bg-blue-100/50 rounded-full w-4/6"></div>
               </div>
             ) : (
-              <p className="text-slate-600 text-sm leading-relaxed">{reviewsSummary ? reviewsSummary.summary : t.insight3Desc}</p>
+              <div 
+                className="text-slate-600 text-sm leading-relaxed markdown-content"
+                dangerouslySetInnerHTML={{ 
+                  __html: renderAIContent(aiInsights?.customer_sentiment || reviewsSummary?.summary || t.insight3Desc) 
+                }}
+              />
             )}
           </CardContent>
         </Card>
@@ -1196,6 +1216,17 @@ export default function StoreAnalyticsPage() {
 
   return (
     <div className="space-y-6 p-4 md:p-8 min-h-screen relative bg-slate-50">
+      <style>{`
+        .markdown-content strong {
+          font-weight: 700;
+        }
+        .markdown-content p {
+          margin-bottom: 0.5rem;
+        }
+        .markdown-content p:last-child {
+          margin-bottom: 0;
+        }
+      `}</style>
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
         <div>
@@ -1204,32 +1235,170 @@ export default function StoreAnalyticsPage() {
         </div>
       </div>
 
-      {/* Tabs Navigation */}
-      <div className="flex p-1 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-x-auto no-scrollbar w-max">
-        <button
-          onClick={() => setActiveTab("finance")}
-          className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
-            activeTab === "finance" ? "bg-resurva-dark text-white shadow-md" : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-          }`}
-        >
-          <Wallet className="w-4 h-4" /> {t.tabFinance}
-        </button>
-        <button
-          onClick={() => setActiveTab("sales")}
-          className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
-            activeTab === "sales" ? "bg-resurva-dark text-white shadow-md" : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-          }`}
-        >
-          <PieChart className="w-4 h-4" /> {t.tabSales}
-        </button>
-        <button
-          onClick={() => setActiveTab("reviews")}
-          className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
-            activeTab === "reviews" ? "bg-resurva-dark text-white shadow-md" : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-          }`}
-        >
-          <Star className="w-4 h-4" /> {t.tabReviews}
-        </button>
+      {/* Tabs Navigation & Timeframe Controls */}
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+        <div className="flex p-1 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-x-auto no-scrollbar w-max shrink-0">
+          <button
+            onClick={() => setActiveTab("finance")}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
+              activeTab === "finance" ? "bg-resurva-dark text-white shadow-md" : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+            }`}
+          >
+            <Wallet className="w-4 h-4" /> {t.tabFinance}
+          </button>
+          <button
+            onClick={() => setActiveTab("sales")}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
+              activeTab === "sales" ? "bg-resurva-dark text-white shadow-md" : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+            }`}
+          >
+            <PieChart className="w-4 h-4" /> {t.tabSales}
+          </button>
+          <button
+            onClick={() => setActiveTab("reviews")}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
+              activeTab === "reviews" ? "bg-resurva-dark text-white shadow-md" : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+            }`}
+          >
+            <Star className="w-4 h-4" /> {t.tabReviews}
+          </button>
+        </div>
+
+        {/* Global Timeframe & Date Picker Controls for Finance and Sales Tabs */}
+        {(activeTab === "finance" || activeTab === "sales") && (
+          <div className="flex flex-wrap items-center gap-3 bg-white p-2 border border-slate-200 rounded-2xl shadow-sm">
+            {/* Display formatted date range text */}
+            <span className="text-xs font-extrabold text-slate-600 bg-slate-50 border border-slate-100 px-3 py-2 rounded-xl">
+              {getRangeText()}
+            </span>
+            
+            {/* Navigation buttons to move back/forward in time */}
+            <div className="flex items-center gap-1 border-r pr-3 border-slate-150">
+              <button 
+                onClick={() => setDateOffset(prev => prev - 1)}
+                className="p-2 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer text-slate-600"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => setDateOffset(0)}
+                className="px-2.5 py-1 text-xs font-bold hover:bg-slate-100 rounded-lg transition-colors cursor-pointer text-slate-500"
+              >
+                {lang === "en" ? "Today" : "Hari Ini"}
+              </button>
+              <button 
+                onClick={() => setDateOffset(prev => prev + 1)}
+                className="p-2 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer text-slate-600"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Date selector dropdown */}
+            <div className="flex items-center bg-slate-100 p-1.5 rounded-xl border border-slate-200 min-w-[150px]">
+              {timeFrame === "weekly" ? (
+                <div className="flex items-center gap-1 w-full justify-between">
+                  <input
+                    type="month"
+                    className="bg-transparent border-none text-xs font-bold text-slate-700 focus:outline-none cursor-pointer text-center w-28"
+                    value={(() => {
+                      const baseDate = new Date(2026, 5, 26);
+                      baseDate.setDate(baseDate.getDate() + dateOffset * 7);
+                      const yyyy = baseDate.getFullYear();
+                      const mm = String(baseDate.getMonth() + 1).padStart(2, '0');
+                      return `${yyyy}-${mm}`;
+                    })()}
+                    onChange={(e) => {
+                      if (!e.target.value) return;
+                      const [newYear, newMonth] = e.target.value.split('-').map(Number);
+                      const baseDate = new Date(2026, 5, 26);
+                      baseDate.setDate(baseDate.getDate() + dateOffset * 7);
+                      const currentWeekNum = Math.ceil(baseDate.getDate() / 7);
+                      const targetWeek = Math.min(currentWeekNum, 4);
+                      
+                      const diffMonths = (newYear - 2026) * 12 + (newMonth - 6); // 6 is June
+                      const newOffset = diffMonths * 4 + (targetWeek - 4);
+                      setDateOffset(newOffset);
+                    }}
+                  />
+                  <span className="text-slate-300">/</span>
+                  <select
+                    className="bg-transparent border-none text-xs font-bold text-slate-700 focus:outline-none cursor-pointer appearance-none pr-1"
+                    value={(() => {
+                      const baseDate = new Date(2026, 5, 26);
+                      baseDate.setDate(baseDate.getDate() + dateOffset * 7);
+                      return Math.min(Math.ceil(baseDate.getDate() / 7), 4).toString();
+                    })()}
+                    onChange={(e) => {
+                      const newWeek = parseInt(e.target.value);
+                      const baseDate = new Date(2026, 5, 26);
+                      baseDate.setDate(baseDate.getDate() + dateOffset * 7);
+                      const currentWeekNum = Math.min(Math.ceil(baseDate.getDate() / 7), 4);
+                      const weekDiff = newWeek - currentWeekNum;
+                      setDateOffset(dateOffset + weekDiff);
+                    }}
+                  >
+                    <option value="1">Mg 1</option>
+                    <option value="2">Mg 2</option>
+                    <option value="3">Mg 3</option>
+                    <option value="4">Mg 4</option>
+                  </select>
+                </div>
+              ) : (
+                <input
+                  type="month"
+                  className="bg-transparent border-none text-xs font-bold text-slate-700 focus:outline-none cursor-pointer w-full text-center"
+                  value={(() => {
+                    const baseDate = new Date(2026, 5, 1);
+                    baseDate.setMonth(baseDate.getMonth() + dateOffset);
+                    const yyyy = baseDate.getFullYear();
+                    const mm = String(baseDate.getMonth() + 1).padStart(2, '0');
+                    return `${yyyy}-${mm}`;
+                  })()}
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    const [newYear, newMonth] = e.target.value.split('-').map(Number);
+                    const baseDate = new Date(2026, 5, 1);
+                    const diffMonths = (newYear - baseDate.getFullYear()) * 12 + (newMonth - (baseDate.getMonth() + 1));
+                    setDateOffset(diffMonths);
+                  }}
+                />
+              )}
+            </div>
+
+            {/* Weekly/Monthly buttons */}
+            <div className="flex bg-slate-100 p-1 rounded-xl">
+              <button
+                onClick={() => { 
+                  setTimeFrame("weekly"); 
+                  const today = new Date();
+                  const baseDate = new Date(2026, 5, 26);
+                  const diffDays = (today.getTime() - baseDate.getTime()) / (1000 * 60 * 60 * 24);
+                  setDateOffset(Math.floor(diffDays / 7)); 
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  timeFrame === "weekly" ? "bg-white text-resurva-dark shadow-xs" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                {t.weekly}
+              </button>
+              <button
+                onClick={() => { 
+                  setTimeFrame("monthly"); 
+                  const today = new Date();
+                  const baseDate = new Date(2026, 5, 1);
+                  const diffMonths = (today.getFullYear() - baseDate.getFullYear()) * 12 + (today.getMonth() - baseDate.getMonth());
+                  setDateOffset(diffMonths); 
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  timeFrame === "monthly" ? "bg-white text-resurva-dark shadow-xs" : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                {t.monthly}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Tab Content Area */}

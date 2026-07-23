@@ -247,7 +247,7 @@ export function SharedLogin({
         </div>
 
         <Card className={`${style.cardBorder} ${style.cardBg} backdrop-blur-md ${style.cardText}`}>
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-6">
             <CardHeader>
               <CardTitle className="text-xl">{currentText.cardTitle}</CardTitle>
               <CardDescription className={style.cardDescText}>

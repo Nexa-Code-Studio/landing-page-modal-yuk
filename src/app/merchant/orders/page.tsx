@@ -321,7 +321,9 @@ export default function OrdersPage() {
   }, [activeTab, loadNextPage]);
 
   const filteredOrders = useMemo(() => {
-    const currentItems = tabData[activeTab].items;
+    const currentItems = [...tabData[activeTab].items];
+    currentItems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    
     if (!searchQuery) return currentItems;
     return currentItems.filter(order =>
       order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -499,20 +501,38 @@ export default function OrdersPage() {
         <div className="border-t border-dashed border-black pt-2 mb-2"></div>
 
         {/* Totals */}
-        <div className="text-sm space-y-1 font-mono">
-          <div className="flex justify-between items-center font-bold">
-            <span>{t.priceLabel}</span>
-            <span>Rp {order.totalAmount.toLocaleString("id-ID")}</span>
-          </div>
-          <div className="flex justify-between items-start pt-2">
-            <span>{t.paymentLabel}</span>
-            <span className="text-right w-1/2 break-words">
-              {order.paymentMethod?.includes("Online") || order.paymentMethod?.includes("QRIS") 
-                ? t.paidOnline 
-                : t.cash}
-            </span>
-          </div>
-        </div>
+        {(() => {
+          const itemsSubtotal = order.items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
+          return (
+            <div className="text-sm space-y-1 font-mono">
+              {order.voucherDiscount && order.voucherDiscount > 0 ? (
+                <>
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span>Rp {itemsSubtotal.toLocaleString("id-ID")}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Voucher ({order.appliedVoucherCode || "Promo"}):</span>
+                    <span>- Rp {order.voucherDiscount.toLocaleString("id-ID")}</span>
+                  </div>
+                  <div className="border-t border-dotted border-black my-1"></div>
+                </>
+              ) : null}
+              <div className="flex justify-between items-center font-bold text-base">
+                <span>{t.priceLabel}</span>
+                <span>Rp {order.totalAmount.toLocaleString("id-ID")}</span>
+              </div>
+              <div className="flex justify-between items-start pt-2">
+                <span>{t.paymentLabel}</span>
+                <span className="text-right w-1/2 break-words font-semibold">
+                  {order.paymentMethod?.includes("Online") || order.paymentMethod?.includes("QRIS") 
+                    ? t.paidOnline 
+                    : t.cash}
+                </span>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     );
   };
@@ -520,6 +540,7 @@ export default function OrdersPage() {
   const renderDetailModal = () => {
     if (!selectedOrderModal) return null;
     const order = selectedOrderModal;
+    const itemsSubtotal = order.items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
     const isOnlineDelivery = order.orderType === "Online Delivery";
     const showDriver = isOnlineDelivery && ["Disiapkan", "Siap Diambil", "Selesai"].includes(order.status);
     const canPrint = !["Menunggu Konfirmasi", "Dibatalkan"].includes(order.status);
@@ -683,6 +704,24 @@ export default function OrdersPage() {
                   </li>
                 ))}
                 
+                {/* Subtotal & Voucher Rows */}
+                {order.voucherDiscount && order.voucherDiscount > 0 ? (
+                  <>
+                    <li className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 border-dashed">
+                      <div className="flex justify-between items-center text-xs text-slate-500 font-medium">
+                        <span>Subtotal</span>
+                        <span>Rp {itemsSubtotal.toLocaleString("id-ID")}</span>
+                      </div>
+                    </li>
+                    <li className="px-4 py-2.5 bg-slate-50">
+                      <div className="flex justify-between items-center text-xs text-emerald-600 font-bold">
+                        <span>Voucher ({order.appliedVoucherCode || order.appliedVoucherName || "Promo"})</span>
+                        <span>- Rp {order.voucherDiscount.toLocaleString("id-ID")}</span>
+                      </div>
+                    </li>
+                  </>
+                ) : null}
+
                 {/* Total Row */}
                 <li className="p-4 bg-slate-50">
                   <div className="flex justify-between items-center border-slate-200">

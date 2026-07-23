@@ -1,53 +1,123 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollText, Search, Filter, Monitor, Smartphone, AlertCircle, Info, AlertTriangle } from "lucide-react";
+import { ScrollText, Search, Monitor, Smartphone, AlertCircle, Info, AlertTriangle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { apiClient } from "@/lib/api";
 
 export default function SystemLogsPage() {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [platformFilter, setPlatformFilter] = useState("all");
   const [severityFilter, setSeverityFilter] = useState("all");
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const pageSize = 10;
 
-  const [logs] = useState([
-    { id: 1, timestamp: "2026-07-13 10:45:12", source: "Mobile Kasir", severity: "Info", event: "User login successful", user: "kasir@kopisenja.com", ip: "114.122.14.5" },
-    { id: 2, timestamp: "2026-07-13 10:42:05", source: "Web Dashboard", severity: "Warning", event: "Failed login attempt (3x)", user: "admin@resurva.com", ip: "103.44.22.1" },
-    { id: 3, timestamp: "2026-07-13 10:30:00", source: "Mobile Pelanggan", severity: "Error", event: "Payment Gateway Timeout", user: "budi.customer@gmail.com", ip: "182.253.44.11" },
-    { id: 4, timestamp: "2026-07-13 10:15:22", source: "Web Dashboard", severity: "Info", event: "Exported SDG Report PDF", user: "hq@boga.com", ip: "114.122.10.88" },
-    { id: 5, timestamp: "2026-07-13 09:55:10", source: "Mobile Kasir", severity: "Info", event: "Created new transaction #TRX-9921", user: "kasir@tokoberkah.com", ip: "114.122.14.5" },
-    { id: 6, timestamp: "2026-07-13 09:12:45", source: "System", severity: "Error", event: "Database Backup Failed", user: "system", ip: "localhost" },
-    { id: 7, timestamp: "2026-07-13 08:30:00", source: "Mobile Pelanggan", severity: "Info", event: "Claimed Surplus Promo", user: "siti.a@gmail.com", ip: "182.253.44.11" },
-  ]);
+  // Debounce search term to avoid spamming the backend API
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+      setCurrentPage(1);
+    }, 450);
 
-  const filteredLogs = logs.filter(log => {
-    const matchSearch = log.event.toLowerCase().includes(search.toLowerCase()) || log.user.toLowerCase().includes(search.toLowerCase());
-    
-    let matchPlatform = true;
-    if (platformFilter !== "all") {
-      matchPlatform = log.source === platformFilter;
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [search]);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [platformFilter, severityFilter]);
+
+  const fetchLogs = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.append("page", currentPage.toString());
+      params.append("page_size", pageSize.toString());
+      
+      if (platformFilter !== "all") {
+        params.append("platform", platformFilter);
+      }
+      if (severityFilter !== "all") {
+        params.append("severity", severityFilter.toUpperCase());
+      }
+      if (debouncedSearch) {
+        params.append("search", debouncedSearch);
+      }
+
+      const response = await apiClient.get<any>(`/logs/?${params.toString()}`);
+      
+      setLogs(response.items || []);
+      if (response.pagination) {
+        setTotalPages(response.pagination.total_pages || 1);
+        setTotalItems(response.pagination.total || 0);
+      }
+    } catch (err) {
+      console.error("Gagal mengambil data log sistem:", err);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    let matchSeverity = true;
-    if (severityFilter !== "all") {
-      matchSeverity = log.severity.toLowerCase() === severityFilter.toLowerCase();
-    }
-
-    return matchSearch && matchPlatform && matchSeverity;
-  });
+  useEffect(() => {
+    fetchLogs();
+  }, [currentPage, platformFilter, severityFilter, debouncedSearch]);
 
   const getSeverityIcon = (severity: string) => {
-    switch (severity) {
-      case "Info": return <Info className="w-4 h-4 text-blue-500" />;
-      case "Warning": return <AlertTriangle className="w-4 h-4 text-amber-500" />;
-      case "Error": return <AlertCircle className="w-4 h-4 text-rose-500" />;
+    switch (severity.toUpperCase()) {
+      case "INFO": return <Info className="w-4 h-4 text-blue-500" />;
+      case "WARNING": return <AlertTriangle className="w-4 h-4 text-amber-500" />;
+      case "ERROR": return <AlertCircle className="w-4 h-4 text-rose-500" />;
       default: return null;
     }
   };
 
-  const getSourceIcon = (source: string) => {
-    if (source.includes("Web")) return <Monitor className="w-4 h-4 text-slate-500" />;
-    if (source.includes("Mobile")) return <Smartphone className="w-4 h-4 text-slate-500" />;
+  const getSeverityClass = (severity: string) => {
+    switch (severity.toUpperCase()) {
+      case "ERROR": return "text-rose-600";
+      case "WARNING": return "text-amber-600";
+      default: return "text-blue-600";
+    }
+  };
+
+  const getPlatformLabel = (platform: string) => {
+    switch (platform) {
+      case "mobile_client": return "Mobile Client";
+      case "web_merchant": return "Web Merchant";
+      case "web_enterprise": return "Web Enterprise";
+      case "web_superadmin": return "Web Superadmin";
+      case "system": return "System";
+      default: return platform;
+    }
+  };
+
+  const getPlatformIcon = (platform: string) => {
+    if (platform.startsWith("web")) return <Monitor className="w-4 h-4 text-slate-500" />;
+    if (platform === "mobile_client") return <Smartphone className="w-4 h-4 text-slate-500" />;
     return <Monitor className="w-4 h-4 text-slate-500" />;
+  };
+
+  const formatTimestamp = (timestamp: string) => {
+    try {
+      return new Date(timestamp).toLocaleString("id-ID", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      });
+    } catch {
+      return timestamp;
+    }
   };
 
   return (
@@ -83,10 +153,11 @@ export default function SystemLogsPage() {
                 onChange={e => setPlatformFilter(e.target.value)}
               >
                 <option value="all">Semua Platform</option>
-                <option value="Web Dashboard">Web Dashboard</option>
-                <option value="Mobile Kasir">Mobile Kasir</option>
-                <option value="Mobile Pelanggan">Mobile Pelanggan</option>
-                <option value="System">System</option>
+                <option value="mobile_client">Mobile Client</option>
+                <option value="web_merchant">Web Merchant</option>
+                <option value="web_enterprise">Web Enterprise</option>
+                <option value="web_superadmin">Web Superadmin</option>
+                <option value="system">System</option>
               </select>
 
               <select 
@@ -115,36 +186,51 @@ export default function SystemLogsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredLogs.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-slate-500 font-sans">
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="w-5 h-5 animate-spin text-resurva-dark" />
+                        Memuat data log...
+                      </div>
+                    </td>
+                  </tr>
+                ) : logs.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-8 text-center text-slate-500 font-sans">
                       Tidak ada log yang sesuai dengan filter pencarian.
                     </td>
                   </tr>
                 ) : (
-                  filteredLogs.map((log) => (
+                  logs.map((log) => (
                     <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4 text-slate-500">{log.timestamp}</td>
+                      <td className="px-6 py-4 text-slate-500 whitespace-nowrap">{formatTimestamp(log.created_at)}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-1.5">
                           {getSeverityIcon(log.severity)}
-                          <span className={`text-xs font-bold ${
-                            log.severity === 'Error' ? 'text-rose-600' : 
-                            log.severity === 'Warning' ? 'text-amber-600' : 'text-blue-600'
-                          }`}>{log.severity}</span>
+                          <span className={`text-xs font-bold ${getSeverityClass(log.severity)}`}>
+                            {log.severity.toUpperCase()}
+                          </span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2 text-slate-700">
-                          {getSourceIcon(log.source)}
-                          {log.source}
+                        <div className="flex items-center gap-2 text-slate-700 whitespace-nowrap">
+                          {getPlatformIcon(log.platform)}
+                          {getPlatformLabel(log.platform)}
                         </div>
                       </td>
-                      <td className="px-6 py-4 font-medium text-slate-900">{log.event}</td>
+                      <td className="px-6 py-4 font-medium text-slate-900">
+                        <div>{log.event}</div>
+                        {log.details && Object.keys(log.details).length > 0 && (
+                          <div className="text-xs text-slate-400 font-sans mt-1 bg-slate-50 p-1.5 rounded border border-slate-100 max-w-lg overflow-x-auto">
+                            {JSON.stringify(log.details)}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-col">
-                          <span className="text-slate-800">{log.user}</span>
-                          <span className="text-xs text-slate-400">{log.ip}</span>
+                          <span className="text-slate-800">{log.user_email || "System"}</span>
+                          <span className="text-xs text-slate-400">{log.ip_address || "-"}</span>
                         </div>
                       </td>
                     </tr>
@@ -156,8 +242,29 @@ export default function SystemLogsPage() {
           
           <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50 rounded-b-xl font-sans">
             <span className="text-sm text-slate-500">
-              Menampilkan {filteredLogs.length} entri log
+              Menampilkan {logs.length} dari {totalItems} entri log
             </span>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1 || loading}
+                >
+                  <ChevronLeft className="w-4 h-4 text-slate-600" />
+                </button>
+                <span className="text-sm font-medium text-slate-700">
+                  Halaman {currentPage} dari {totalPages}
+                </span>
+                <button
+                  className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages || loading}
+                >
+                  <ChevronRight className="w-4 h-4 text-slate-600" />
+                </button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
